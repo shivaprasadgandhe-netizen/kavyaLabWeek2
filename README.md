@@ -165,3 +165,4 @@ Test coverage includes:
 - **`tests/unit/validation.test.ts`**: Input sanitization, role allowlists, page numbers, search query truncation, sort criteria.
 - **`tests/unit/self-demotion.test.ts`**: Prevention of admin lockouts and self-demotion.
 - **`tests/integration/change-role.test.ts`**: Mocked atomic transaction testing verifying role updates and audit log creation.
+"# kavyalabweek3" 
