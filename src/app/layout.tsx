@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { MotionProvider } from "@/components/motion-provider";
 
 export const metadata: Metadata = {
   title: "Kavya Labs | Build smarter with AI, built in Bengaluru",
@@ -24,7 +25,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className="font-sans antialiased bg-slate-950 text-slate-100 min-h-screen">
-        {children}
+        <MotionProvider>{children}</MotionProvider>
       </body>
     </html>
   );

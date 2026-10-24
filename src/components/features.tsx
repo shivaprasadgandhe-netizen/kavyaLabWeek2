@@ -1,8 +1,11 @@
-import { Zap, ShieldCheck, TrendingUp } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+"use client";
+
+import { Zap, ShieldCheck, TrendingUp, type IconProps } from "@/components/icons";
+import { motion } from "motion/react";
+import type { ComponentType } from "react";
 
 interface FeatureCardProps {
-  icon: LucideIcon;
+  icon: ComponentType<IconProps>;
   title: string;
   description: string;
 }
@@ -44,12 +47,17 @@ export function Features() {
 
         {/* Responsive Grid of 3 Cards */}
         <div className="mt-14 sm:mt-16 lg:mt-20 grid grid-cols-1 gap-6 sm:gap-8 md:grid-cols-2 lg:grid-cols-3">
-          {features.map((feature) => {
+          {features.map((feature, idx) => {
             const Icon = feature.icon;
             return (
-              <div
+              <motion.div
                 key={feature.title}
-                className="group relative flex flex-col justify-between rounded-2xl border border-slate-800/80 bg-slate-900/40 p-7 sm:p-8 backdrop-blur-sm transition-all duration-300 hover:border-indigo-500/40 hover:bg-slate-900/70 hover:shadow-xl hover:shadow-indigo-500/5 hover:-translate-y-1"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.4, delay: idx * 0.12, ease: "easeOut" }}
+                whileHover={{ y: -4, transition: { duration: 0.15 } }}
+                className="group relative flex flex-col justify-between rounded-2xl border border-slate-800/80 bg-slate-900/40 p-7 sm:p-8 backdrop-blur-sm transition-colors hover:border-indigo-500/40 hover:bg-slate-900/70 hover:shadow-xl hover:shadow-indigo-500/5"
               >
                 <div>
                   {/* Icon Box */}
@@ -73,7 +81,7 @@ export function Features() {
                     Enterprise Ready
                   </span>
                 </div>
-              </div>
+              </motion.div>
             );
           })}
         </div>

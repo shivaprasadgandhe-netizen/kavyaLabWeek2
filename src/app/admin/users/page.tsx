@@ -1,7 +1,7 @@
 import { requireAdmin } from "@/lib/auth-guards";
-import { prisma } from "@/lib/prisma";
+import { db, withRetry } from "@/lib/db";
 import Link from "next/link";
-import UserAdminActions from "./UserAdminActions";
+import { UserAdminActions } from "./user-admin-actions";
 import {
   validateSearchQuery,
   validatePageNumber,
@@ -17,11 +17,7 @@ import {
   Shield,
   RotateCcw,
   AlertTriangle,
-  Download,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
-} from "lucide-react";
+} from "@/components/icons";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -39,9 +35,7 @@ interface AdminUsersPageProps {
 }
 
 export default async function AdminUsersPage({ searchParams }: AdminUsersPageProps) {
-  // Call requireAdmin() at the top of every /admin page
   const { user: actor } = await requireAdmin();
-
   const resolvedSearchParams = await searchParams;
 
   // Validate search query (trimmed, max 100 characters)
@@ -70,25 +64,27 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
       }
     : {};
 
-  const [totalCount, users] = await Promise.all([
-    prisma.user.count({ where }),
-    prisma.user.findMany({
-      where,
-      skip,
-      take: pageSize,
-      orderBy: { [sort]: dir },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        status: true,
-        createdAt: true,
-        lastSignedInAt: true,
-        suspendedReason: true,
-      },
-    }),
-  ]);
+  const [totalCount, users] = await withRetry(() =>
+    Promise.all([
+      db.user.count({ where }),
+      db.user.findMany({
+        where,
+        skip,
+        take: pageSize,
+        orderBy: { [sort]: dir },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          status: true,
+          createdAt: true,
+          lastSignedInAt: true,
+          suspendedReason: true,
+        },
+      }),
+    ])
+  );
 
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
@@ -102,14 +98,13 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
     return `/admin/users?${params.toString()}`;
   };
 
-  // Build query string helper for column sorting (keeps q and page)
+  // Build query string helper for column sorting
   const getSortUrl = (columnKey: string) => {
     const params = new URLSearchParams();
     if (q) params.set("q", q);
     params.set("page", String(page));
     params.set("sort", columnKey);
 
-    // If currently sorting by this column, toggle direction; otherwise default to asc for name, desc for dates
     if (sort === columnKey) {
       params.set("dir", dir === "asc" ? "desc" : "asc");
     } else {
@@ -117,13 +112,6 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
     }
     return `/admin/users?${params.toString()}`;
   };
-
-  // Build export URL preserving current filters
-  const exportParams = new URLSearchParams();
-  if (q) exportParams.set("q", q);
-  if (sort) exportParams.set("sort", sort);
-  if (dir) exportParams.set("dir", dir);
-  const exportUrl = `/admin/users/export?${exportParams.toString()}`;
 
   return (
     <div className="space-y-6">
@@ -134,24 +122,12 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
             User Management
           </h1>
           <p className="mt-1 text-sm text-slate-400">
-            View registered accounts, search users, manage roles, and review account suspension state.
+            View registered accounts, search users, manage roles, and review account suspension states.
           </p>
         </div>
 
-        {/* Actions: Export CSV and Search Bar */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
-          {/* CSV Export Button */}
-          <a
-            href={exportUrl}
-            download="users-export.csv"
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-900/90 px-3.5 py-2 text-sm font-semibold text-slate-200 hover:text-white hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-950 transition-colors shadow-sm"
-            aria-label="Export users to CSV"
-          >
-            <Download className="h-4 w-4 text-indigo-400" aria-hidden="true" />
-            <span>Export CSV</span>
-          </a>
-
-          {/* Search Bar */}
+        {/* Search Bar */}
+        <div className="flex items-center gap-3 w-full sm:w-auto">
           <form
             action="/admin/users"
             method="GET"
@@ -160,7 +136,7 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
             <input type="hidden" name="sort" value={sort} />
             <input type="hidden" name="dir" value={dir} />
             <div className="relative flex-1 sm:w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" aria-hidden="true" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <input
                 type="text"
                 name="q"
@@ -184,7 +160,7 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
                 title="Clear search"
                 aria-label="Clear search"
               >
-                <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                <RotateCcw className="h-4 w-4" />
                 <span className="hidden sm:inline">Reset</span>
               </Link>
             )}
@@ -198,7 +174,6 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
           <table className="min-w-full divide-y divide-slate-800/80 text-left text-sm">
             <thead className="bg-slate-950/60 text-xs font-semibold uppercase tracking-wider text-slate-400">
               <tr>
-                {/* User (sortable) */}
                 <th scope="col" className="px-5 py-4">
                   <Link
                     href={getSortUrl("name")}
@@ -206,15 +181,7 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
                     aria-label={`Sort by name, currently ${sort === "name" ? dir : "unsorted"}`}
                   >
                     <span>User</span>
-                    {sort === "name" ? (
-                      dir === "asc" ? (
-                        <ArrowUp className="h-3.5 w-3.5 text-indigo-400" aria-hidden="true" />
-                      ) : (
-                        <ArrowDown className="h-3.5 w-3.5 text-indigo-400" aria-hidden="true" />
-                      )
-                    ) : (
-                      <ArrowUpDown className="h-3 w-3 text-slate-600" aria-hidden="true" />
-                    )}
+                    <span className="text-slate-600 font-mono text-[10px]">{sort === "name" ? (dir === "asc" ? "▲" : "▼") : "↕"}</span>
                   </Link>
                 </th>
 
@@ -222,27 +189,17 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
                 <th scope="col" className="px-5 py-4">Role</th>
                 <th scope="col" className="px-5 py-4">Status</th>
 
-                {/* Joined Date (sortable) */}
                 <th scope="col" className="px-5 py-4">
                   <Link
                     href={getSortUrl("createdAt")}
                     className="inline-flex items-center gap-1.5 hover:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded px-1 -mx-1 transition-colors"
                     aria-label={`Sort by joined date, currently ${sort === "createdAt" ? dir : "unsorted"}`}
                   >
-                    <span>Joined Date (UTC)</span>
-                    {sort === "createdAt" ? (
-                      dir === "asc" ? (
-                        <ArrowUp className="h-3.5 w-3.5 text-indigo-400" aria-hidden="true" />
-                      ) : (
-                        <ArrowDown className="h-3.5 w-3.5 text-indigo-400" aria-hidden="true" />
-                      )
-                    ) : (
-                      <ArrowUpDown className="h-3 w-3 text-slate-600" aria-hidden="true" />
-                    )}
+                    <span>Joined (UTC)</span>
+                    <span className="text-slate-600 font-mono text-[10px]">{sort === "createdAt" ? (dir === "asc" ? "▲" : "▼") : "↕"}</span>
                   </Link>
                 </th>
 
-                {/* Last Sign-In (sortable) */}
                 <th scope="col" className="px-5 py-4">
                   <Link
                     href={getSortUrl("lastSignedInAt")}
@@ -250,15 +207,7 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
                     aria-label={`Sort by last sign-in, currently ${sort === "lastSignedInAt" ? dir : "unsorted"}`}
                   >
                     <span>Last Sign-In (UTC)</span>
-                    {sort === "lastSignedInAt" ? (
-                      dir === "asc" ? (
-                        <ArrowUp className="h-3.5 w-3.5 text-indigo-400" aria-hidden="true" />
-                      ) : (
-                        <ArrowDown className="h-3.5 w-3.5 text-indigo-400" aria-hidden="true" />
-                      )
-                    ) : (
-                      <ArrowUpDown className="h-3 w-3 text-slate-600" aria-hidden="true" />
-                    )}
+                    <span className="text-slate-600 font-mono text-[10px]">{sort === "lastSignedInAt" ? (dir === "asc" ? "▲" : "▼") : "↕"}</span>
                   </Link>
                 </th>
 
@@ -283,7 +232,7 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
                             href={`/admin/users?sort=${sort}&dir=${dir}`}
                             className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-400 hover:text-indigo-300 underline underline-offset-4 focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded px-1"
                           >
-                            <RotateCcw className="h-3 w-3" aria-hidden="true" />
+                            <RotateCcw className="h-3 w-3" />
                             <span>Clear search</span>
                           </Link>
                         </div>
@@ -304,8 +253,8 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
                   return (
                     <tr
                       key={u.id}
-                      className={`hover:bg-slate-800/30 transition-colors ${
-                        isSelf ? "bg-indigo-950/10" : ""
+                      className={`hover:bg-slate-800/30 transition-colors animate-in fade-in duration-200 ${
+                        isSelf ? "bg-indigo-950/15" : ""
                       }`}
                     >
                       {/* Name with "You" badge */}
@@ -336,9 +285,9 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
                           }`}
                         >
                           {u.role === "ADMIN" ? (
-                            <Shield className="h-3 w-3" aria-hidden="true" />
+                            <Shield className="h-3 w-3" />
                           ) : (
-                            <UserIcon className="h-3 w-3" aria-hidden="true" />
+                            <UserIcon className="h-3 w-3" />
                           )}
                           {u.role}
                         </span>
@@ -367,7 +316,7 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
                       <td className="px-5 py-4 text-slate-400 max-w-xs truncate text-xs">
                         {u.suspendedReason ? (
                           <span className="flex items-center gap-1 text-red-300 font-medium">
-                            <AlertTriangle className="h-3 w-3 shrink-0 text-red-400" aria-hidden="true" />
+                            <AlertTriangle className="h-3 w-3 shrink-0 text-red-400" />
                             <span className="truncate">{u.suspendedReason}</span>
                           </span>
                         ) : (
@@ -407,12 +356,12 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
                 href={getPageUrl(page - 1)}
                 className="inline-flex items-center gap-1 rounded-xl border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
               >
-                <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                <ChevronLeft className="h-3.5 w-3.5" />
                 Previous
               </Link>
             ) : (
               <span className="inline-flex items-center gap-1 rounded-xl border border-slate-900 bg-slate-950/40 px-3 py-1.5 text-xs font-medium text-slate-600 cursor-not-allowed">
-                <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                <ChevronLeft className="h-3.5 w-3.5" />
                 Previous
               </span>
             )}
@@ -427,12 +376,12 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
                 className="inline-flex items-center gap-1 rounded-xl border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
               >
                 Next
-                <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+                <ChevronRight className="h-3.5 w-3.5" />
               </Link>
             ) : (
               <span className="inline-flex items-center gap-1 rounded-xl border border-slate-900 bg-slate-950/40 px-3 py-1.5 text-xs font-medium text-slate-600 cursor-not-allowed">
                 Next
-                <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+                <ChevronRight className="h-3.5 w-3.5" />
               </span>
             )}
           </div>

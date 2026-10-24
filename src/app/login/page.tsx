@@ -1,7 +1,7 @@
 import { auth, signIn } from "@/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Sparkles, ArrowLeft, AlertCircle } from "lucide-react";
+import { Sparkles, ArrowLeft, AlertCircle } from "@/components/icons";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -12,16 +12,24 @@ export const metadata: Metadata = {
 function getAuthErrorMessage(errorCode?: string): { title: string; description: string } | null {
   if (!errorCode) return null;
 
-  if (errorCode.toLowerCase() === "suspended") {
+  const code = errorCode.toLowerCase();
+  if (code === "suspended") {
     return {
       title: "Account Suspended",
-      description: "Your account has been suspended. Please contact an administrator or support if you believe this is an error.",
+      description: "Your account is currently suspended. Please contact an administrator for assistance.",
+    };
+  }
+
+  if (code.includes("access") || code.includes("denied")) {
+    return {
+      title: "Access Denied",
+      description: "Access was denied. Please ensure you have appropriate permissions and an authorized email address.",
     };
   }
 
   return {
     title: "Sign-In Failed",
-    description: "An error occurred while signing in. Please verify your credentials and try again.",
+    description: "Sign-in failed. Try again.",
   };
 }
 
@@ -56,7 +64,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             href="/"
             className="inline-flex items-center gap-2 text-sm font-medium text-slate-400 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:outline-none rounded-md px-1.5 py-1"
           >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            <ArrowLeft className="h-4 w-4" />
             Back to Home
           </Link>
         </div>
@@ -70,7 +78,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               className="flex items-center gap-2.5 font-bold text-2xl tracking-tight text-white mb-2"
             >
               <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 text-white shadow-md shadow-indigo-500/25 ring-1 ring-white/20">
-                <Sparkles className="h-5 w-5" aria-hidden="true" />
+                <Sparkles className="h-5 w-5" />
               </span>
               <span className="bg-gradient-to-r from-white via-slate-100 to-slate-300 bg-clip-text text-transparent">
                 Kavya Labs
@@ -88,10 +96,10 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           {authError && (
             <div
               role="alert"
-              className="mt-6 rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-rose-200 backdrop-blur-sm animate-in fade-in slide-in-from-top-1 duration-200"
+              className="mt-6 rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-rose-200 backdrop-blur-sm"
             >
               <div className="flex items-start gap-3">
-                <AlertCircle className="h-5 w-5 text-rose-400 shrink-0 mt-0.5" aria-hidden="true" />
+                <AlertCircle className="h-5 w-5 text-rose-400 shrink-0 mt-0.5" />
                 <div className="flex-1 text-sm">
                   <h2 className="font-semibold text-rose-300">{authError.title}</h2>
                   <p className="mt-1 text-xs text-rose-200/90 leading-relaxed">
@@ -138,7 +146,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                     d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                   />
                 </svg>
-                Sign in with Google
+                Continue with Google
               </button>
             </form>
           </div>

@@ -2,7 +2,8 @@ import { requireUser } from "@/lib/auth-guards";
 import { signOut } from "@/auth";
 import Image from "next/image";
 import Link from "next/link";
-import { Sparkles, LogOut, ArrowLeft, Shield, User as UserIcon, ShieldCheck, Radio } from "lucide-react";
+import { Sparkles, LogOut, ArrowLeft, Shield, User as UserIcon, Radio } from "@/components/icons";
+import { DeleteAccountSection } from "./delete-account-section";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -17,7 +18,7 @@ export default async function DashboardPage() {
   const userRole = user.role;
   const userStatus = user.status;
   const name = user.name;
-  const email = user.email;
+  const email = user.email || "";
   const image = user.image;
 
   return (
@@ -30,7 +31,7 @@ export default async function DashboardPage() {
             className="flex items-center gap-2.5 font-bold text-xl sm:text-2xl tracking-tight text-white focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:outline-none rounded-lg py-1 px-1.5 transition-colors hover:text-indigo-300"
           >
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 text-white shadow-md shadow-indigo-500/20 ring-1 ring-white/20">
-              <Sparkles className="h-5 w-5" aria-hidden="true" />
+              <Sparkles className="h-5 w-5" />
             </span>
             <span className="bg-gradient-to-r from-white via-slate-100 to-slate-300 bg-clip-text text-transparent">
               Kavya Labs
@@ -39,31 +40,22 @@ export default async function DashboardPage() {
 
           <div className="flex items-center gap-3 sm:gap-4">
             <span
-              className={`hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider ${
+              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider ${
                 userStatus === "ACTIVE"
                   ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
                   : "bg-red-500/15 text-red-300 border border-red-500/30"
               }`}
             >
-              <Radio className="h-3 w-3" aria-hidden="true" />
+              <Radio className="h-3 w-3" />
               {userStatus}
             </span>
 
             <Link
-              href="/dashboard/security"
-              id="dashboard-security-link"
-              className="text-xs sm:text-sm font-medium text-slate-300 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:outline-none rounded-md px-2 py-1 flex items-center gap-1.5"
-            >
-              <ShieldCheck className="h-4 w-4 text-indigo-400" aria-hidden="true" />
-              <span>Security</span>
-            </Link>
-
-            <Link
               href="/"
-              className="text-xs sm:text-sm font-medium text-slate-400 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:outline-none rounded-md px-2 py-1 hidden md:flex items-center gap-1.5"
+              className="text-xs sm:text-sm font-medium text-slate-400 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:outline-none rounded-md px-2 py-1 hidden sm:flex items-center gap-1.5"
             >
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-              Landing Page
+              <ArrowLeft className="h-4 w-4" />
+              Home
             </Link>
 
             {isAdmin && (
@@ -72,12 +64,12 @@ export default async function DashboardPage() {
                 id="dashboard-admin-link"
                 className="text-xs sm:text-sm font-semibold text-amber-400 hover:text-amber-300 transition-colors focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none rounded-md px-2 py-1 flex items-center gap-1.5"
               >
-                <Shield className="h-4 w-4" aria-hidden="true" />
+                <Shield className="h-4 w-4" />
                 Admin
               </Link>
             )}
 
-            {/* Server Action Sign Out Button */}
+            {/* Sign Out Button */}
             <form
               action={async () => {
                 "use server";
@@ -87,9 +79,9 @@ export default async function DashboardPage() {
               <button
                 type="submit"
                 id="sign-out-button"
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-700/80 bg-slate-900/80 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-800 hover:text-white hover:border-slate-600 focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:outline-none transition-all duration-200"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-700/80 bg-slate-900/80 px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-semibold text-slate-200 hover:bg-slate-800 hover:text-white hover:border-slate-600 focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:outline-none transition-all duration-200"
               >
-                <LogOut className="h-4 w-4" aria-hidden="true" />
+                <LogOut className="h-4 w-4" />
                 Sign Out
               </button>
             </form>
@@ -98,15 +90,15 @@ export default async function DashboardPage() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 py-12 sm:py-16">
+      <main className="flex-1 py-10 sm:py-14">
         <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
           {/* Welcome Banner */}
           <div className="mb-8">
             <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white">
-              User Dashboard
+              Hello, {name?.split(" ")[0] || "there"}!
             </h1>
-            <p className="mt-2 text-slate-400">
-              Welcome back to your Kavya Labs account portal.
+            <p className="mt-2 text-slate-400 text-sm sm:text-base">
+              Welcome to your personal account overview on Kavya Labs.
             </p>
           </div>
 
@@ -134,7 +126,7 @@ export default async function DashboardPage() {
                     className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-amber-500 text-slate-950 ring-2 ring-slate-900"
                     title="Admin Account"
                   >
-                    <Shield className="h-3.5 w-3.5" aria-hidden="true" />
+                    <Shield className="h-3.5 w-3.5" />
                   </span>
                 )}
               </div>
@@ -152,12 +144,17 @@ export default async function DashboardPage() {
                         : "bg-indigo-500/15 text-indigo-300 border border-indigo-500/30"
                     }`}
                   >
-                    {isAdmin ? (
-                      <Shield className="h-3 w-3" aria-hidden="true" />
-                    ) : (
-                      <UserIcon className="h-3 w-3" aria-hidden="true" />
-                    )}
-                    Role: {userRole}
+                    {isAdmin ? <Shield className="h-3 w-3" /> : <UserIcon className="h-3 w-3" />}
+                    {userRole}
+                  </span>
+                  <span
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider ${
+                      userStatus === "ACTIVE"
+                        ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                        : "bg-red-500/15 text-red-300 border border-red-500/30"
+                    }`}
+                  >
+                    Status: {userStatus}
                   </span>
                 </div>
                 <p className="mt-1 text-sm text-slate-400 truncate">
@@ -202,35 +199,17 @@ export default async function DashboardPage() {
 
               <div className="rounded-xl border border-slate-800/60 bg-slate-950/40 p-4">
                 <dt className="text-xs font-medium uppercase tracking-wider text-slate-400">
-                  Authentication Provider
+                  Account Status
                 </dt>
                 <dd className="mt-1 text-base font-medium text-white">
-                  Google OAuth
+                  {userStatus}
                 </dd>
               </div>
             </div>
-
-            {/* Bottom Actions */}
-            <div className="mt-8 pt-6 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <span className="text-xs text-slate-500">
-                Session verified via server-side Auth.js and Next.js middleware protection.
-              </span>
-              <form
-                action={async () => {
-                  "use server";
-                  await signOut({ redirectTo: "/login" });
-                }}
-              >
-                <button
-                  type="submit"
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-red-600/90 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-red-500 active:bg-red-700 focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:outline-none transition-all duration-200"
-                >
-                  <LogOut className="h-4 w-4" aria-hidden="true" />
-                  Sign Out
-                </button>
-              </form>
-            </div>
           </div>
+
+          {/* Delete Account Section */}
+          <DeleteAccountSection userEmail={email} />
         </div>
       </main>
     </div>

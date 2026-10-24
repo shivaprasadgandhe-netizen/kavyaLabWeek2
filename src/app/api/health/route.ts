@@ -1,17 +1,14 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { logError } from "@/lib/logger";
+import { db, withRetry } from "@/lib/db";
 
 export async function GET() {
   try {
-    // Run simple lightweight probe
-    await prisma.$queryRaw`SELECT 1`;
+    // Run simple lightweight probe with retry for Neon cold starts
+    await withRetry(() => db.$queryRaw`SELECT 1`);
 
     return NextResponse.json({ ok: true }, { status: 200 });
-  } catch (error: unknown) {
-    logError({ path: "/api/health", error });
-
-    // Strictly return { ok: false } without leaking error message or connection details
+  } catch {
+    // Strictly return { ok: false } with 503 and no error details leaked
     return NextResponse.json({ ok: false }, { status: 503 });
   }
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { Sparkles, RefreshCw, AlertTriangle } from "lucide-react";
+import { Sparkles, RefreshCw, AlertTriangle } from "@/components/icons";
 
 interface GlobalErrorProps {
   error: Error & { digest?: string };

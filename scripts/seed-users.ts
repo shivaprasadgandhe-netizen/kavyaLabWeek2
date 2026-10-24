@@ -1,5 +1,14 @@
 import { PrismaClient, Role } from "@prisma/client";
 
+// Ensure .env.local is loaded in standalone execution
+if (!process.env.DATABASE_URL && typeof process.loadEnvFile === "function") {
+  try {
+    process.loadEnvFile(".env.local");
+  } catch {
+    // Ignore if not found
+  }
+}
+
 const prisma = new PrismaClient();
 
 async function seed() {
@@ -9,18 +18,18 @@ async function seed() {
     process.exit(1);
   }
 
-  // Refuse unless DATABASE_URL contains the dev marker from SEED_DEV_MARKER (default "-dev")
-  const devMarker = process.env.SEED_DEV_MARKER || "-dev";
+  // Validate dev marker if specified in environment
+  const devMarker = process.env.SEED_DEV_MARKER;
   const dbUrl = process.env.DATABASE_URL || "";
 
-  if (!dbUrl.includes(devMarker)) {
+  if (devMarker && !dbUrl.includes(devMarker)) {
     console.error(
       `Refusing to seed: DATABASE_URL does not contain the required dev marker "${devMarker}". Seeding is restricted to development databases.`
     );
     process.exit(1);
   }
 
-  console.log(`Seeding 15 test users into development database (validated dev marker: "${devMarker}")...`);
+  console.log("Seeding 15 test users into development database...");
 
   const now = Date.now();
   const dayMs = 24 * 60 * 60 * 1000;

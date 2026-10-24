@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition, useActionState, useEffect } from "react";
+import { useState, useTransition, useActionState, useEffect, useRef } from "react";
 import { changeRoleFormAction, suspendUser, reactivateUser, type AdminActionResult } from "./actions";
-import RoleChangeModal from "./RoleChangeModal";
-import { Shield, ShieldAlert, Check, Loader2, Ban, UserCheck } from "lucide-react";
+import { RoleChangeModal } from "./role-change-modal";
+import { Shield, ShieldAlert, Check, Loader2, Ban, UserCheck } from "@/components/icons";
 
 interface UserAdminActionsProps {
   userId: string;
@@ -15,7 +15,7 @@ interface UserAdminActionsProps {
 
 const initialActionState: AdminActionResult = { success: false };
 
-export default function UserAdminActions({
+export function UserAdminActions({
   userId,
   userName,
   currentRole,
@@ -24,6 +24,7 @@ export default function UserAdminActions({
 }: UserAdminActionsProps) {
   const [selectedRole, setSelectedRole] = useState(currentRole);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const roleButtonRef = useRef<HTMLButtonElement>(null);
 
   // useActionState for role change form action
   const [roleState, formAction, isRolePending] = useActionState(
@@ -115,14 +116,16 @@ export default function UserAdminActions({
         </select>
 
         <button
+          ref={roleButtonRef}
           type="submit"
-          disabled={isPending || selectedRole === currentRole}
+          disabled={isPending || selectedRole === currentRole || (isSelf && selectedRole === "USER")}
+          title={isSelf && selectedRole === "USER" ? "You cannot demote yourself" : undefined}
           className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-indigo-500 active:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-900 transition-colors"
         >
           {isRolePending ? (
-            <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+            <Loader2 className="h-3 w-3 animate-spin" />
           ) : (
-            <Shield className="h-3 w-3" aria-hidden="true" />
+            <Shield className="h-3 w-3" />
           )}
           <span>Role</span>
         </button>
@@ -132,13 +135,15 @@ export default function UserAdminActions({
           <button
             type="button"
             onClick={() => {
+              if (isSelf) return;
               setIsSuspending(!isSuspending);
               setStatusErrorMessage(null);
             }}
-            disabled={isPending}
+            disabled={isPending || isSelf}
+            title={isSelf ? "You cannot suspend yourself" : undefined}
             className="inline-flex items-center gap-1 rounded-lg border border-red-800/80 bg-red-950/40 px-2.5 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-900/60 transition-colors disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-slate-900"
           >
-            <Ban className="h-3 w-3" aria-hidden="true" />
+            <Ban className="h-3 w-3" />
             <span>Suspend</span>
           </button>
         ) : (
@@ -149,22 +154,16 @@ export default function UserAdminActions({
             className="inline-flex items-center gap-1 rounded-lg border border-emerald-800/80 bg-emerald-950/40 px-2.5 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-900/60 transition-colors disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:ring-offset-slate-900"
           >
             {isStatusPending ? (
-              <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+              <Loader2 className="h-3 w-3 animate-spin" />
             ) : (
-              <UserCheck className="h-3 w-3" aria-hidden="true" />
+              <UserCheck className="h-3 w-3" />
             )}
             <span>Reactivate</span>
           </button>
         )}
       </form>
 
-      {isSelf && (
-        <span className="text-[11px] text-amber-400/90 font-medium">
-          (Your Account)
-        </span>
-      )}
-
-      {/* Confirmation Modal */}
+      {/* Confirmation Modal with focus return to roleButtonRef */}
       <RoleChangeModal
         isOpen={isConfirmModalOpen}
         onClose={() => setIsConfirmModalOpen(false)}
@@ -174,6 +173,7 @@ export default function UserAdminActions({
         newRole={selectedRole}
         isPending={isRolePending}
         formAction={formAction}
+        triggerRef={roleButtonRef}
       />
 
       {/* Inline reason field when Suspend is clicked */}
@@ -199,7 +199,7 @@ export default function UserAdminActions({
               disabled={isPending || suspendReason.trim().length < 3}
               className="inline-flex items-center gap-1 rounded bg-red-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-red-500 disabled:opacity-50"
             >
-              {isPending && <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />}
+              {isPending && <Loader2 className="h-3 w-3 animate-spin" />}
               Confirm Suspend
             </button>
             <button
@@ -219,7 +219,7 @@ export default function UserAdminActions({
           role="alert"
           className="flex items-center gap-1 text-[11px] font-medium text-red-400 bg-red-950/60 border border-red-900/80 rounded px-2 py-1"
         >
-          <ShieldAlert className="h-3 w-3 shrink-0" aria-hidden="true" />
+          <ShieldAlert className="h-3 w-3 shrink-0" />
           <span>{roleState.error}</span>
         </div>
       )}
@@ -229,7 +229,7 @@ export default function UserAdminActions({
           role="alert"
           className="flex items-center gap-1 text-[11px] font-medium text-red-400 bg-red-950/60 border border-red-900/80 rounded px-2 py-1"
         >
-          <ShieldAlert className="h-3 w-3 shrink-0" aria-hidden="true" />
+          <ShieldAlert className="h-3 w-3 shrink-0" />
           <span>{statusErrorMessage}</span>
         </div>
       )}
@@ -239,7 +239,7 @@ export default function UserAdminActions({
           role="status"
           className="flex items-center gap-1 text-[11px] font-medium text-emerald-400 bg-emerald-950/60 border border-emerald-900/80 rounded px-2 py-1"
         >
-          <Check className="h-3 w-3 shrink-0" aria-hidden="true" />
+          <Check className="h-3 w-3 shrink-0" />
           <span>Role updated successfully.</span>
         </div>
       )}
@@ -249,10 +249,12 @@ export default function UserAdminActions({
           role="status"
           className="flex items-center gap-1 text-[11px] font-medium text-emerald-400 bg-emerald-950/60 border border-emerald-900/80 rounded px-2 py-1"
         >
-          <Check className="h-3 w-3 shrink-0" aria-hidden="true" />
+          <Check className="h-3 w-3 shrink-0" />
           <span>{statusSuccessMessage}</span>
         </div>
       )}
     </div>
   );
 }
+
+export default UserAdminActions;

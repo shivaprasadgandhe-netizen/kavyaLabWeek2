@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Sparkles, Home, ArrowLeft } from "lucide-react";
+import { Sparkles, Home, ArrowLeft } from "@/components/icons";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {

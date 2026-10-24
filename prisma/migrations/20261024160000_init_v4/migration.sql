@@ -4,6 +4,12 @@ CREATE SCHEMA IF NOT EXISTS "public";
 -- CreateEnum
 CREATE TYPE "Role" AS ENUM ('USER', 'ADMIN');
 
+-- CreateEnum
+CREATE TYPE "UserStatus" AS ENUM ('ACTIVE', 'SUSPENDED');
+
+-- CreateEnum
+CREATE TYPE "AuditAction" AS ENUM ('ROLE_CHANGED', 'SUSPENDED', 'REACTIVATED');
+
 -- CreateTable
 CREATE TABLE "User" (
     "id" TEXT NOT NULL,
@@ -12,8 +18,10 @@ CREATE TABLE "User" (
     "emailVerified" TIMESTAMP(3),
     "image" TEXT,
     "role" "Role" NOT NULL DEFAULT 'USER',
+    "status" "UserStatus" NOT NULL DEFAULT 'ACTIVE',
+    "suspendedReason" VARCHAR(200),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "lastSignedInAt" TIMESTAMP(3),
 
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")
 );
@@ -32,7 +40,6 @@ CREATE TABLE "Account" (
     "scope" TEXT,
     "id_token" TEXT,
     "session_state" TEXT,
-    "refresh_token_expires_in" INTEGER,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -58,8 +65,30 @@ CREATE TABLE "VerificationToken" (
     "expires" TIMESTAMP(3) NOT NULL
 );
 
+-- CreateTable
+CREATE TABLE "AuditLog" (
+    "id" TEXT NOT NULL,
+    "actorId" TEXT,
+    "targetUserId" TEXT,
+    "action" "AuditAction" NOT NULL,
+    "oldValue" TEXT,
+    "newValue" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "AuditLog_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
+
+-- CreateIndex
+CREATE INDEX "User_createdAt_idx" ON "User"("createdAt");
+
+-- CreateIndex
+CREATE INDEX "User_role_idx" ON "User"("role");
+
+-- CreateIndex
+CREATE INDEX "User_lastSignedInAt_idx" ON "User"("lastSignedInAt");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Account_provider_providerAccountId_key" ON "Account"("provider", "providerAccountId");
@@ -73,8 +102,17 @@ CREATE UNIQUE INDEX "VerificationToken_token_key" ON "VerificationToken"("token"
 -- CreateIndex
 CREATE UNIQUE INDEX "VerificationToken_identifier_token_key" ON "VerificationToken"("identifier", "token");
 
+-- CreateIndex
+CREATE INDEX "AuditLog_createdAt_idx" ON "AuditLog"("createdAt");
+
 -- AddForeignKey
 ALTER TABLE "Account" ADD CONSTRAINT "Account_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Session" ADD CONSTRAINT "Session_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "AuditLog" ADD CONSTRAINT "AuditLog_actorId_fkey" FOREIGN KEY ("actorId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "AuditLog" ADD CONSTRAINT "AuditLog_targetUserId_fkey" FOREIGN KEY ("targetUserId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;

@@ -19,93 +19,47 @@ enum UserStatus {
   SUSPENDED
 }
 
-enum SecurityEventType {
-  SIGN_IN
-  SIGN_IN_BLOCKED
-  ACCOUNT_SUSPENDED
-  ACCOUNT_REACTIVATED
+enum AuditAction {
   ROLE_CHANGED
-  SESSIONS_REVOKED
-  DATA_EXPORTED
-  ACCOUNT_DELETED
+  SUSPENDED
+  REACTIVATED
 }
 
 model User {
-  id              String          @id @default(cuid())
+  id              String       @id @default(cuid())
   name            String?
-  email           String?         @unique
+  email           String?      @unique
   emailVerified   DateTime?
   image           String?
-  role            Role            @default(USER)
-  status          UserStatus      @default(ACTIVE)
-  suspendedAt     DateTime?
-  suspendedReason String?         @db.VarChar(200)
+  role            Role         @default(USER)
+  status          UserStatus   @default(ACTIVE)
+  suspendedReason String?      @db.VarChar(200)
+  createdAt       DateTime     @default(now())
   lastSignedInAt  DateTime?
+
   accounts        Account[]
   sessions        Session[]
-  securityEvents  SecurityEvent[]
-  actorAuditLogs  AuditLog[]      @relation("ActorAuditLogs")
-  targetAuditLogs AuditLog[]      @relation("TargetUserAuditLogs")
-
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  actorAuditLogs  AuditLog[]   @relation("ActorAuditLogs")
+  targetAuditLogs AuditLog[]   @relation("TargetUserAuditLogs")
 
   @@index([createdAt])
-  @@index([lastSignedInAt])
   @@index([role])
-}
-
-model SecurityEvent {
-  id        String            @id @default(cuid())
-  userId    String?
-  type      SecurityEventType
-  ipHash    String?
-  userAgent String?           @db.VarChar(255)
-  createdAt DateTime          @default(now())
-
-  user      User?             @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([createdAt])
-}
-
-model RateLimit {
-  key          String   @id
-  count        Int
-  windowEndsAt DateTime
-
-  @@index([windowEndsAt])
-}
-
-model AuditLog {
-  id           String   @id @default(cuid())
-  actorId      String?
-  targetUserId String?
-  oldRole      Role
-  newRole      Role
-  createdAt    DateTime @default(now())
-
-  actor        User?    @relation("ActorAuditLogs", fields: [actorId], references: [id], onDelete: SetNull)
-  targetUser   User?    @relation("TargetUserAuditLogs", fields: [targetUserId], references: [id], onDelete: SetNull)
-
-  @@index([createdAt])
-  @@index([targetUserId])
+  @@index([lastSignedInAt])
 }
 
 model Account {
-  id                       String  @id @default(cuid())
-  userId                   String
-  type                     String
-  provider                 String
-  providerAccountId        String
-  refresh_token            String? @db.Text
-  access_token             String? @db.Text
-  expires_at               Int?
-  token_type               String?
-  scope                    String?
-  id_token                 String? @db.Text
-  session_state            String?
-  refresh_token_expires_in Int?
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -120,7 +74,6 @@ model Session {
   sessionToken String   @unique
   userId       String
   expires      DateTime
-  userAgent    String?  @db.VarChar(255)
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt    DateTime @default(now())
@@ -133,4 +86,19 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model AuditLog {
+  id           String      @id @default(cuid())
+  actorId      String?
+  targetUserId String?
+  action       AuditAction
+  oldValue     String?
+  newValue     String?
+  createdAt    DateTime    @default(now())
+
+  actor        User?       @relation("ActorAuditLogs", fields: [actorId], references: [id], onDelete: SetNull)
+  targetUser   User?       @relation("TargetUserAuditLogs", fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
 }

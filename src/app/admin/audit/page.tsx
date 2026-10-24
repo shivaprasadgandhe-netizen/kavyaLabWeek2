@@ -1,12 +1,12 @@
 import { requireAdmin } from "@/lib/auth-guards";
-import { prisma } from "@/lib/prisma";
+import { db, withRetry } from "@/lib/db";
 import Link from "next/link";
-import { Search, ChevronLeft, ChevronRight, Shield, RotateCcw, Clock, ArrowRight } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, Shield, RotateCcw, Clock, ArrowRight } from "@/components/icons";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Admin Audit Trail | Kavya Labs",
-  description: "Administrative action history and role change audit logs.",
+  description: "Administrative action history and audit logs.",
 };
 
 interface AdminAuditPageProps {
@@ -17,7 +17,6 @@ interface AdminAuditPageProps {
 }
 
 export default async function AdminAuditPage({ searchParams }: AdminAuditPageProps) {
-  // Call requireAdmin() at the top of every /admin page
   await requireAdmin();
 
   const resolvedParams = searchParams ? await searchParams : undefined;
@@ -47,19 +46,21 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
       }
     : {};
 
-  const [totalCount, logs] = await Promise.all([
-    prisma.auditLog.count({ where }),
-    prisma.auditLog.findMany({
-      where,
-      skip,
-      take: pageSize,
-      orderBy: { createdAt: "desc" },
-      include: {
-        actor: { select: { id: true, name: true, email: true } },
-        targetUser: { select: { id: true, name: true, email: true } },
-      },
-    }),
-  ]);
+  const [totalCount, logs] = await withRetry(() =>
+    Promise.all([
+      db.auditLog.count({ where }),
+      db.auditLog.findMany({
+        where,
+        skip,
+        take: pageSize,
+        orderBy: { createdAt: "desc" },
+        include: {
+          actor: { select: { id: true, name: true, email: true } },
+          targetUser: { select: { id: true, name: true, email: true } },
+        },
+      }),
+    ])
+  );
 
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
@@ -76,11 +77,11 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white flex items-center gap-2.5">
-            <Shield className="h-7 w-7 text-amber-400" aria-hidden="true" />
+            <Shield className="h-7 w-7 text-amber-400" />
             Administrative Audit Trail
           </h1>
           <p className="mt-1 text-sm text-slate-400">
-            Immutable log of role changes and administrative actions. User sessions and sign-in histories are never exposed here.
+            Immutable log of role changes and administrative actions. Target user links are retained even if user is deleted.
           </p>
         </div>
 
@@ -91,7 +92,7 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
           className="flex items-center gap-2 w-full sm:w-auto"
         >
           <div className="relative flex-1 sm:w-72">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" aria-hidden="true" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <input
               type="text"
               name="q"
@@ -99,7 +100,7 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
               placeholder="Filter by actor or target..."
               maxLength={100}
               aria-label="Search audit log"
-              className="w-full rounded-xl border border-slate-800 bg-slate-900/90 pl-9 pr-3 py-2 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-full rounded-xl border border-slate-800 bg-slate-900/90 pl-9 pr-3 py-2 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
           <button
@@ -113,7 +114,7 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
               href="/admin/audit"
               className="inline-flex items-center gap-1 rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2 text-sm font-medium text-slate-400 hover:text-white transition-colors"
             >
-              <RotateCcw className="h-4 w-4" aria-hidden="true" />
+              <RotateCcw className="h-4 w-4" />
               <span className="hidden sm:inline">Reset</span>
             </Link>
           )}
@@ -128,7 +129,7 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
               <tr>
                 <th scope="col" className="px-6 py-4">Actor (Admin)</th>
                 <th scope="col" className="px-6 py-4">Target User</th>
-                <th scope="col" className="px-6 py-4">Role Transition</th>
+                <th scope="col" className="px-6 py-4">Action &amp; Details</th>
                 <th scope="col" className="px-6 py-4">Timestamp (UTC)</th>
               </tr>
             </thead>
@@ -150,7 +151,7 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
                       <td className="px-6 py-4 whitespace-nowrap font-medium text-white">
                         <div className="flex items-center gap-2">
                           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-500/10 text-amber-300 font-semibold text-xs border border-amber-500/20">
-                            <Shield className="h-3 w-3" aria-hidden="true" />
+                            <Shield className="h-3 w-3" />
                           </span>
                           <span>{actorDisplay}</span>
                         </div>
@@ -159,19 +160,35 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
                         {targetDisplay}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="inline-flex items-center gap-2 text-xs font-semibold">
-                          <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-                            {log.oldRole}
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${
+                              log.action === "ROLE_CHANGED"
+                                ? "bg-indigo-500/15 text-indigo-300 border border-indigo-500/30"
+                                : log.action === "SUSPENDED"
+                                ? "bg-red-500/15 text-red-300 border border-red-500/30"
+                                : "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                            }`}
+                          >
+                            {log.action}
                           </span>
-                          <ArrowRight className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
-                          <span className="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
-                            {log.newRole}
-                          </span>
+                          {log.oldValue && log.newValue && (
+                            <div className="inline-flex items-center gap-1.5 text-xs text-slate-400">
+                              <span className="text-slate-400">{log.oldValue}</span>
+                              <ArrowRight className="h-3 w-3 text-slate-600" />
+                              <span className="text-white font-medium">{log.newValue}</span>
+                            </div>
+                          )}
+                          {!log.oldValue && log.newValue && (
+                            <span className="text-xs text-slate-400">({log.newValue})</span>
+                          )}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-400 flex items-center gap-1.5 mt-2 sm:mt-0">
-                        <Clock className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
-                        {formattedTime}
+                      <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-400">
+                        <span className="inline-flex items-center gap-1.5">
+                          <Clock className="h-3.5 w-3.5 text-slate-500" />
+                          {formattedTime}
+                        </span>
                       </td>
                     </tr>
                   );
@@ -193,12 +210,12 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
                   href={getPageUrl(page - 1)}
                   className="inline-flex items-center gap-1 rounded-xl border border-slate-800 bg-slate-900 px-3 py-1.5 text-slate-300 hover:bg-slate-800"
                 >
-                  <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                  <ChevronLeft className="h-3.5 w-3.5" />
                   Previous
                 </Link>
               ) : (
                 <span className="opacity-40 cursor-not-allowed inline-flex items-center gap-1 rounded-xl border border-slate-900 px-3 py-1.5">
-                  <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                  <ChevronLeft className="h-3.5 w-3.5" />
                   Previous
                 </span>
               )}
@@ -209,12 +226,12 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
                   className="inline-flex items-center gap-1 rounded-xl border border-slate-800 bg-slate-900 px-3 py-1.5 text-slate-300 hover:bg-slate-800"
                 >
                   Next
-                  <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+                  <ChevronRight className="h-3.5 w-3.5" />
                 </Link>
               ) : (
                 <span className="opacity-40 cursor-not-allowed inline-flex items-center gap-1 rounded-xl border border-slate-900 px-3 py-1.5">
                   Next
-                  <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+                  <ChevronRight className="h-3.5 w-3.5" />
                 </span>
               )}
             </div>

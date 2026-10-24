@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { prisma } from "@/lib/prisma";
+import { db } from "@/lib/db";
 import { redirect } from "next/navigation";
 
 /**
@@ -18,7 +18,7 @@ export async function requireUser() {
     redirect("/login");
   }
 
-  const dbUser = await prisma.user.findUnique({
+  const dbUser = await db.user.findUnique({
     where: userId ? { id: userId } : { email: userEmail! },
     select: {
       id: true,
@@ -29,7 +29,6 @@ export async function requireUser() {
       image: true,
       createdAt: true,
       lastSignedInAt: true,
-      suspendedAt: true,
       suspendedReason: true,
     },
   });
@@ -41,7 +40,7 @@ export async function requireUser() {
   // If status is SUSPENDED, delete all active sessions immediately and redirect
   if (dbUser.status === "SUSPENDED") {
     try {
-      await prisma.session.deleteMany({
+      await db.session.deleteMany({
         where: { userId: dbUser.id },
       });
     } catch (err) {

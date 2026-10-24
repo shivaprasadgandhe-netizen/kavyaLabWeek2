@@ -15,7 +15,7 @@ interface SignupsChartProps {
   data: Array<{ date: string; count: number }>;
 }
 
-export default function SignupsChart({ data }: SignupsChartProps) {
+export function SignupsChart({ data }: SignupsChartProps) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -66,9 +66,13 @@ export default function SignupsChart({ data }: SignupsChartProps) {
             name="New Signups"
             fill="#6366f1"
             radius={[4, 4, 0, 0]}
+            isAnimationActive={true}
+            animationDuration={600}
           />
         </BarChart>
       </ResponsiveContainer>
     </div>
   );
 }
+
+export default SignupsChart;

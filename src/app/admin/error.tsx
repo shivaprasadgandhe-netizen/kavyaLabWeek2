@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { AlertCircle, RotateCcw } from "lucide-react";
+import { AlertCircle, RotateCcw } from "@/components/icons";
 import Link from "next/link";
 
 export default function AdminError({
@@ -18,7 +18,7 @@ export default function AdminError({
   return (
     <div className="flex min-h-[50vh] flex-col items-center justify-center text-center px-4">
       <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-red-950/60 text-red-400 border border-red-900/60 shadow-lg mb-6">
-        <AlertCircle className="h-8 w-8" aria-hidden="true" />
+        <AlertCircle className="h-8 w-8" />
       </div>
 
       <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
@@ -34,8 +34,8 @@ export default function AdminError({
           type="button"
           className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 transition-colors"
         >
-          <RotateCcw className="h-4 w-4" aria-hidden="true" />
-          Try again
+          <RotateCcw className="h-4 w-4" />
+          <span>Try again</span>
         </button>
 
         <Link

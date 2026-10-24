@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Menu, X, Sparkles } from "lucide-react";
+import { Menu, X, Sparkles } from "@/components/icons";
+import { AnimatePresence, motion } from "motion/react";
 import type { Session } from "next-auth";
 
 interface NavbarClientProps {
@@ -64,7 +65,7 @@ export function NavbarClient({ session }: NavbarClientProps) {
           className="flex items-center gap-2.5 font-bold text-xl sm:text-2xl tracking-tight text-white focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:outline-none rounded-lg py-1 px-1.5 transition-colors hover:text-indigo-300"
         >
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 text-white shadow-md shadow-indigo-500/20 ring-1 ring-white/20">
-            <Sparkles className="h-5 w-5" aria-hidden="true" />
+            <Sparkles className="h-5 w-5" />
           </span>
           <span className="bg-gradient-to-r from-white via-slate-100 to-slate-300 bg-clip-text text-transparent">
             Kavya Labs
@@ -98,43 +99,45 @@ export function NavbarClient({ session }: NavbarClientProps) {
             aria-label={isOpen ? "Close menu" : "Open menu"}
             className="inline-flex items-center justify-center rounded-lg p-2 text-slate-300 hover:bg-slate-800 hover:text-white focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:outline-none transition-colors"
           >
-            {isOpen ? (
-              <X className="h-6 w-6" aria-hidden="true" />
-            ) : (
-              <Menu className="h-6 w-6" aria-hidden="true" />
-            )}
+            {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
           </button>
         </div>
       </nav>
 
-      {/* Mobile Menu Overlay & Panel */}
-      {isOpen && (
-        <div
-          id="mobile-nav-menu"
-          role="region"
-          aria-label="Mobile navigation menu"
-          className="fixed inset-x-0 top-16 sm:top-20 bottom-0 bg-slate-950/95 backdrop-blur-lg border-t border-slate-800/80 md:hidden z-40 flex flex-col p-6 animate-in fade-in slide-in-from-top-2 duration-200"
-        >
-          <div className="flex flex-col gap-4 pt-2">
-            <Link
-              href="#features"
-              onClick={closeMenu}
-              className="text-lg font-medium text-slate-200 hover:text-white hover:bg-slate-900 rounded-lg px-4 py-3 transition-colors focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:outline-none"
-            >
-              Features
-            </Link>
-            <div className="pt-2">
+      {/* Mobile Menu with AnimatePresence */}
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            id="mobile-nav-menu"
+            role="region"
+            aria-label="Mobile navigation menu"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.25, ease: "easeInOut" }}
+            className="overflow-hidden bg-slate-950/95 backdrop-blur-lg border-t border-slate-800/80 md:hidden z-40"
+          >
+            <div className="flex flex-col gap-4 p-6 pt-4">
               <Link
-                href={authButtonHref}
+                href="#features"
                 onClick={closeMenu}
-                className="flex w-full items-center justify-center rounded-xl bg-indigo-600 px-5 py-3.5 text-base font-semibold text-white shadow-md hover:bg-indigo-500 active:bg-indigo-700 focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:outline-none transition-all"
+                className="text-lg font-medium text-slate-200 hover:text-white hover:bg-slate-900 rounded-lg px-4 py-3 transition-colors focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:outline-none"
               >
-                {authButtonText}
+                Features
               </Link>
+              <div className="pt-2">
+                <Link
+                  href={authButtonHref}
+                  onClick={closeMenu}
+                  className="flex w-full items-center justify-center rounded-xl bg-indigo-600 px-5 py-3.5 text-base font-semibold text-white shadow-md hover:bg-indigo-500 active:bg-indigo-700 focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:outline-none transition-all"
+                >
+                  {authButtonText}
+                </Link>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </header>
   );
 }
