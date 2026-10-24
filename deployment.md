@@ -155,3 +155,69 @@ Before pushing any changes to production, run the following verification checks:
    - For Apex domain (`kavyalabs.ai`): A record pointing to `76.76.21.21`
    - For Subdomain / `www` (`www.kavyalabs.ai`): CNAME record pointing to `cname.vercel-dns.com`
 5. Vercel will automatically issue and renew free SSL certificates via Let's Encrypt.
+
+---
+
+## 6. Resolving Vercel Security Block (CVE-2025-66478)
+
+If your build on Vercel finishes compiling but fails at output deployment with:
+```text
+Build cache cleared after a dependency security block. Redeploy to build with a clean cache.
+Vulnerable version of Next.js detected, please update immediately.
+```
+
+### Cause:
+Older Next.js releases (such as `next@15.1.7`) contain a critical vulnerability in React Server Components (CVE-2025-66478). Vercel blocks deployments containing vulnerable Next.js binaries.
+
+### Solution Applied:
+1. Upgraded `next` to `15.5.28` and `eslint-config-next` to `15.5.28`.
+2. Upgraded `react` and `react-dom` to `19.0.3` (patched for CVE-2025-55182).
+3. Upgraded `eslint` to `9.39.5` (removes deprecated 9.20.1 warning).
+4. Configured `outputFileTracingRoot: path.join(__dirname)` in `next.config.ts`.
+5. When redeploying on Vercel: go to your deployment, click **Redeploy**, and ensure **Use existing build cache** is unchecked to build with a fresh clean cache.
+
+---
+
+## 7. Database Configuration (Local MySQL vs Production PostgreSQL)
+
+The project supports both local MySQL testing and cloud PostgreSQL (Neon):
+
+### Local Testing with MySQL:
+1. Ensure your local MySQL server is running (port `3306`).
+2. In `prisma/schema.prisma`:
+   ```prisma
+   datasource db {
+     provider = "mysql"
+     url      = env("DATABASE_URL")
+   }
+   ```
+3. In `.env.local` or `.env`:
+   ```env
+   DATABASE_URL="mysql://root:Shiva%40123%24@localhost:3306/kavya_labs"
+   ```
+4. Push the schema to your local MySQL database:
+   ```bash
+   npx prisma db push
+   ```
+
+### Deploying to Production (Vercel + Neon PostgreSQL):
+1. In `prisma/schema.prisma`, ensure provider is set to `postgresql`:
+   ```prisma
+   datasource db {
+     provider = "postgresql"
+     url      = env("DATABASE_URL")
+   }
+   ```
+2. In Vercel Environment Variables, supply your Neon PostgreSQL connection string ending with `?sslmode=require`.
+3. Run `npm run db:deploy` or `npx prisma db push` to synchronize your Neon database.
+
+---
+
+## 8. User-Friendly Error Handling
+
+The application includes end-to-end user-friendly error handlers:
+- **`src/app/not-found.tsx`**: Custom 404 page styled with Kavya Labs dark theme, clear messaging, and quick navigation buttons back to Home or Login.
+- **`src/app/error.tsx`**: React Error Boundary with user-friendly error guidance, error reference ID support, and an interactive **Try Again** retry button.
+- **`src/app/global-error.tsx`**: Root layout exception handler providing graceful recovery UI.
+- **`src/app/login/page.tsx`**: Intelligent NextAuth error handling that displays friendly alerts for common OAuth errors (AccessDenied, Configuration, Verification, Callback errors) instead of blank or broken redirects.
+

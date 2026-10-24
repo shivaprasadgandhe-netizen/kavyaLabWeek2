@@ -1,7 +1,7 @@
 import { auth, signIn } from "@/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Sparkles, ArrowLeft } from "lucide-react";
+import { Sparkles, ArrowLeft, AlertCircle } from "lucide-react";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -9,12 +9,67 @@ export const metadata: Metadata = {
   description: "Sign in to your Kavya Labs account with Google.",
 };
 
-export default async function LoginPage() {
+function getAuthErrorMessage(errorCode?: string): { title: string; description: string } | null {
+  if (!errorCode) return null;
+
+  switch (errorCode) {
+    case "OAuthSignin":
+      return {
+        title: "Google Sign-In Failed",
+        description: "Unable to connect to Google authentication. Please verify your connection or try again.",
+      };
+    case "OAuthCallbackError":
+    case "CallbackRouteError":
+      return {
+        title: "Authentication Callback Error",
+        description: "An error occurred while communicating with Google. Please try signing in again.",
+      };
+    case "OAuthCreateAccount":
+      return {
+        title: "Account Creation Failed",
+        description: "We could not register your user profile in the database. Please try again shortly.",
+      };
+    case "OAuthAccountNotLinked":
+      return {
+        title: "Account Already Exists",
+        description: "An account with this email is already registered using a different login method.",
+      };
+    case "AccessDenied":
+      return {
+        title: "Access Denied",
+        description: "Sign-in was cancelled or you do not have permission to access this resource.",
+      };
+    case "Configuration":
+      return {
+        title: "Server Configuration Error",
+        description: "Authentication is temporarily misconfigured. Please verify server environment variables.",
+      };
+    case "Verification":
+      return {
+        title: "Session Expired",
+        description: "Your authentication session has expired. Please sign in again.",
+      };
+    default:
+      return {
+        title: "Sign-In Error",
+        description: "An unexpected error occurred during authentication. Please try again.",
+      };
+  }
+}
+
+interface LoginPageProps {
+  searchParams?: Promise<{ error?: string }>;
+}
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
   const session = await auth();
 
   if (session?.user) {
     redirect("/dashboard");
   }
+
+  const resolvedParams = searchParams ? await searchParams : undefined;
+  const authError = getAuthErrorMessage(resolvedParams?.error);
 
   return (
     <div className="min-h-screen flex flex-col justify-center items-center bg-slate-950 text-slate-100 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
@@ -60,6 +115,24 @@ export default async function LoginPage() {
               Sign in with your Google account to access your dashboard
             </p>
           </div>
+
+          {/* User-friendly Error Alert */}
+          {authError && (
+            <div
+              role="alert"
+              className="mt-6 rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-rose-200 backdrop-blur-sm animate-in fade-in slide-in-from-top-1 duration-200"
+            >
+              <div className="flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-rose-400 shrink-0 mt-0.5" aria-hidden="true" />
+                <div className="flex-1 text-sm">
+                  <h2 className="font-semibold text-rose-300">{authError.title}</h2>
+                  <p className="mt-1 text-xs text-rose-200/90 leading-relaxed">
+                    {authError.description}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Sign In Form */}
           <div className="mt-8">
