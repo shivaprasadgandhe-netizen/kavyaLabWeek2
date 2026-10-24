@@ -1,7 +1,8 @@
 import { requireAdmin } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
+import { buildDateBuckets } from "@/lib/admin/date-buckets";
 import SignupsChart from "./SignupsChart";
-import { Users, Shield, UserPlus, LogIn, TrendingUp } from "lucide-react";
+import { Users, Shield, UserPlus, LogIn, TrendingUp, Clock } from "lucide-react";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -17,10 +18,8 @@ export default async function AdminAnalyticsPage() {
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-  // 30-day UTC window for daily signups chart
-  const todayUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  const thirtyDaysAgoUTC = new Date(todayUTC);
-  thirtyDaysAgoUTC.setUTCDate(thirtyDaysAgoUTC.getUTCDate() - 29);
+  // Compute 30-day window start date using pure date-buckets logic
+  const { startDate } = buildDateBuckets([], now);
 
   // Parallel database queries with Promise.all
   const [
@@ -41,44 +40,33 @@ export default async function AdminAnalyticsPage() {
         DATE_TRUNC('day', "createdAt") AT TIME ZONE 'UTC' AS day,
         COUNT(*)::int AS count
       FROM "User"
-      WHERE "createdAt" >= ${thirtyDaysAgoUTC}
+      WHERE "createdAt" >= ${startDate}
       GROUP BY DATE_TRUNC('day', "createdAt") AT TIME ZONE 'UTC'
       ORDER BY day ASC
     `,
   ]);
 
-  // Build map of counts by UTC date 'YYYY-MM-DD'
-  const countsByDate = new Map<string, number>();
-  for (const row of rawDailySignups) {
-    const d = new Date(row.day);
-    const key = d.toISOString().slice(0, 10);
-    countsByDate.set(key, Number(row.count));
-  }
-
-  // Construct exact 30-day series in JavaScript, filling missing days with 0
-  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const chartData: Array<{ date: string; count: number }> = [];
-  for (let i = 0; i < 30; i++) {
-    const d = new Date(thirtyDaysAgoUTC);
-    d.setUTCDate(d.getUTCDate() + i);
-    const key = d.toISOString().slice(0, 10);
-    const label = `${monthNames[d.getUTCMonth()]} ${String(d.getUTCDate()).padStart(2, "0")}`;
-    chartData.push({
-      date: label,
-      count: countsByDate.get(key) ?? 0,
-    });
-  }
+  // Construct exact 30-day series and date range label
+  const { buckets: chartData, rangeLabel } = buildDateBuckets(rawDailySignups, now);
+  const lastUpdated = now.toUTCString();
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
-          Platform Analytics
-        </h1>
-        <p className="mt-1 text-sm text-slate-400">
-          Real-time metrics, platform usage summary, account security statuses, and UTC signup trends.
-        </p>
+      {/* Header with Last updated timestamp */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+            Platform Analytics
+          </h1>
+          <p className="mt-1 text-sm text-slate-400">
+            Real-time metrics, platform usage summary, account security statuses, and UTC signup trends.
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5 text-xs text-slate-400 bg-slate-900/60 border border-slate-800 px-3 py-1.5 rounded-lg shrink-0 self-start sm:self-auto">
+          <Clock className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
+          <span>Last updated:</span>
+          <span className="text-slate-200 font-medium">{lastUpdated}</span>
+        </div>
       </div>
 
       {/* 5 Summary Cards */}
@@ -161,16 +149,21 @@ export default async function AdminAnalyticsPage() {
 
       {/* Chart Section */}
       <div className="rounded-2xl border border-slate-800/80 bg-slate-900/40 p-6 sm:p-8 backdrop-blur-sm shadow-xl">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-6 border-b border-slate-800/80 mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-6 border-b border-slate-800/80 mb-6">
           <div className="flex items-center gap-2.5">
             <TrendingUp className="h-5 w-5 text-indigo-400" aria-hidden="true" />
             <h2 className="text-lg sm:text-xl font-semibold text-white">
               Daily Signups (Last 30 Days)
             </h2>
           </div>
-          <span className="text-xs text-slate-400">
-            All calculations grouped by UTC calendar day
-          </span>
+          <div className="flex items-center gap-2.5">
+            <span className="text-xs font-medium text-indigo-300 bg-indigo-950/60 border border-indigo-800/50 px-2.5 py-1 rounded-md">
+              {rangeLabel}
+            </span>
+            <span className="text-xs text-slate-400">
+              UTC calendar day grouping
+            </span>
+          </div>
         </div>
 
         {totalUsers === 0 ? (

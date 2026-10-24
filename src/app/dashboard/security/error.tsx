@@ -4,6 +4,8 @@ import { useEffect } from "react";
 import { AlertCircle, RotateCcw } from "lucide-react";
 import Link from "next/link";
 
+import { logError } from "@/lib/logger";
+
 export default function SecurityError({
   error,
   reset,
@@ -12,7 +14,7 @@ export default function SecurityError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("Dashboard security error:", error);
+    logError({ path: "/dashboard/security", error });
   }, [error]);
 
   return (

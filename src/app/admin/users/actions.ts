@@ -2,7 +2,9 @@
 
 import { requireAdmin } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
+import { isSelfDemotion } from "@/lib/admin/self-demotion";
 import { validateRole, validateSuspensionReason } from "@/lib/validation";
+import { logError } from "@/lib/logger";
 import {
   checkAdminRoleRateLimit,
   checkAdminStatusRateLimit,
@@ -47,7 +49,7 @@ export async function changeRole(
   const typedNewRole = roleValidation.value;
 
   // Prevent self-demotion lockout
-  if (actorId === userId && typedNewRole === "USER") {
+  if (isSelfDemotion(actorId, userId, typedNewRole, actor.role)) {
     return {
       success: false,
       error: "Self-demotion is not allowed. An administrator cannot demote themselves to USER.",
@@ -109,6 +111,26 @@ export async function changeRole(
   revalidatePath("/admin/audit");
 
   return { success: true };
+}
+
+/**
+ * Server action handler compatible with React 19 useActionState.
+ */
+export async function changeRoleFormAction(
+  _prevState: AdminActionResult,
+  formData: FormData
+): Promise<AdminActionResult> {
+  try {
+    const userId = formData.get("userId") as string;
+    const newRole = formData.get("newRole") as string;
+    return await changeRole(userId, newRole);
+  } catch (error: unknown) {
+    logError({ action: "changeRoleFormAction", error });
+    return {
+      success: false,
+      error: "An unexpected error occurred while updating the role.",
+    };
+  }
 }
 
 /**
@@ -186,28 +208,36 @@ export async function suspendUser(
     // Non-blocking
   }
 
-  // Atomic transaction: update status, record event, delete sessions immediately
-  await prisma.$transaction([
-    prisma.user.update({
-      where: { id: userId },
-      data: {
-        status: "SUSPENDED",
-        suspendedAt: new Date(),
-        suspendedReason: cleanReason,
-      },
-    }),
-    prisma.session.deleteMany({
-      where: { userId },
-    }),
-    prisma.securityEvent.create({
-      data: {
-        userId,
-        type: "ACCOUNT_SUSPENDED",
-        ipHash,
-        userAgent,
-      },
-    }),
-  ]);
+  try {
+    // Atomic transaction: update status, record event, delete sessions immediately
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: userId },
+        data: {
+          status: "SUSPENDED",
+          suspendedAt: new Date(),
+          suspendedReason: cleanReason,
+        },
+      }),
+      prisma.session.deleteMany({
+        where: { userId },
+      }),
+      prisma.securityEvent.create({
+        data: {
+          userId,
+          type: "ACCOUNT_SUSPENDED",
+          ipHash,
+          userAgent,
+        },
+      }),
+    ]);
+  } catch (error: unknown) {
+    logError({ action: "suspendUser", error });
+    return {
+      success: false,
+      error: "An unexpected database error occurred while suspending the user.",
+    };
+  }
 
   revalidatePath("/admin/users");
   revalidatePath("/admin");
@@ -262,24 +292,32 @@ export async function reactivateUser(userId: string): Promise<AdminActionResult>
     // Non-blocking
   }
 
-  await prisma.$transaction([
-    prisma.user.update({
-      where: { id: userId },
-      data: {
-        status: "ACTIVE",
-        suspendedAt: null,
-        suspendedReason: null,
-      },
-    }),
-    prisma.securityEvent.create({
-      data: {
-        userId,
-        type: "ACCOUNT_REACTIVATED",
-        ipHash,
-        userAgent,
-      },
-    }),
-  ]);
+  try {
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: userId },
+        data: {
+          status: "ACTIVE",
+          suspendedAt: null,
+          suspendedReason: null,
+        },
+      }),
+      prisma.securityEvent.create({
+        data: {
+          userId,
+          type: "ACCOUNT_REACTIVATED",
+          ipHash,
+          userAgent,
+        },
+      }),
+    ]);
+  } catch (error: unknown) {
+    logError({ action: "reactivateUser", error });
+    return {
+      success: false,
+      error: "An unexpected database error occurred while reactivating the user.",
+    };
+  }
 
   revalidatePath("/admin/users");
   revalidatePath("/admin");

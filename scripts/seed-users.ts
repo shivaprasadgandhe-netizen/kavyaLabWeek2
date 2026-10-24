@@ -3,25 +3,24 @@ import { PrismaClient, Role } from "@prisma/client";
 const prisma = new PrismaClient();
 
 async function seed() {
+  // Refuse if NODE_ENV is production
   if (process.env.NODE_ENV === "production") {
     console.error("Refusing to seed: NODE_ENV is production. Seeding is strictly forbidden in production.");
     process.exit(1);
   }
 
+  // Refuse unless DATABASE_URL contains the dev marker from SEED_DEV_MARKER (default "-dev")
+  const devMarker = process.env.SEED_DEV_MARKER || "-dev";
   const dbUrl = process.env.DATABASE_URL || "";
-  const isAllowedDevDb =
-    dbUrl.includes("ep-raspy-river-b48o7gm2") ||
-    dbUrl.includes("localhost") ||
-    dbUrl.includes("127.0.0.1");
 
-  if (!isAllowedDevDb) {
+  if (!dbUrl.includes(devMarker)) {
     console.error(
-      "Refusing to seed: DATABASE_URL does not match the approved local or Neon development database (ep-raspy-river-b48o7gm2.c-6.us-east-2.aws.neon.tech)."
+      `Refusing to seed: DATABASE_URL does not contain the required dev marker "${devMarker}". Seeding is restricted to development databases.`
     );
     process.exit(1);
   }
 
-  console.log("Seeding 15 test users into development database...");
+  console.log(`Seeding 15 test users into development database (validated dev marker: "${devMarker}")...`);
 
   const now = Date.now();
   const dayMs = 24 * 60 * 60 * 1000;

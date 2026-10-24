@@ -116,3 +116,8 @@ export async function checkDeleteRateLimit(userId: string): Promise<RateLimitRes
 export async function checkRevokeSessionsRateLimit(userId: string): Promise<RateLimitResult> {
   return checkRateLimit(`user:sessions:${userId}`, 10, 60 * 60);
 }
+
+// 7. Admin users CSV export: 10 per admin per hour (3600s)
+export async function checkAdminUserCsvExportRateLimit(adminId: string): Promise<RateLimitResult> {
+  return checkRateLimit(`admin:csvexport:${adminId}`, 10, 60 * 60);
+}
