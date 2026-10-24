@@ -17,31 +17,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   callbacks: {
     ...authConfig.callbacks,
-    async signIn({ user }) {
-      if (user.email) {
-        const adminEmailsRaw = process.env.ADMIN_EMAILS || "";
-        const adminEmails = adminEmailsRaw
-          .split(",")
-          .map((e) => e.trim().toLowerCase())
-          .filter(Boolean);
-
-        const userEmail = user.email.trim().toLowerCase();
-        if (adminEmails.includes(userEmail)) {
-          try {
-            const existingUser = await prisma.user.findUnique({
-              where: { email: user.email },
-            });
-            if (existingUser && existingUser.role !== "ADMIN") {
-              await prisma.user.update({
-                where: { email: user.email },
-                data: { role: "ADMIN" },
-              });
-            }
-          } catch (error) {
-            console.error("Error setting ADMIN role in signIn callback:", error);
-          }
-        }
-      }
+    async signIn() {
       return true;
     },
     async session({ session, token }) {
@@ -85,6 +61,39 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
   events: {
+    async signIn({ user }) {
+      if (!user.email && !user.id) return;
+
+      const adminEmailsRaw = process.env.ADMIN_EMAILS || "";
+      const adminEmails = adminEmailsRaw
+        .split(",")
+        .map((e) => e.trim().toLowerCase())
+        .filter(Boolean);
+
+      const userEmail = user.email ? user.email.trim().toLowerCase() : "";
+      const shouldPromote = Boolean(userEmail && adminEmails.includes(userEmail));
+
+      try {
+        const existingUser = user.id
+          ? await prisma.user.findUnique({ where: { id: user.id } })
+          : await prisma.user.findUnique({ where: { email: user.email! } });
+
+        if (existingUser) {
+          const updateData: { lastSignedInAt: Date; role?: "ADMIN" } = {
+            lastSignedInAt: new Date(),
+          };
+          if (shouldPromote && existingUser.role !== "ADMIN") {
+            updateData.role = "ADMIN";
+          }
+          await prisma.user.update({
+            where: { id: existingUser.id },
+            data: updateData,
+          });
+        }
+      } catch (error) {
+        console.error("Error updating user in signIn event:", error);
+      }
+    },
     async createUser({ user }) {
       if (user.email) {
         const adminEmailsRaw = process.env.ADMIN_EMAILS || "";

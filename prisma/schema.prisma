@@ -15,17 +15,35 @@ enum Role {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  role          Role      @default(USER)
-  accounts      Account[]
-  sessions      Session[]
+  id              String     @id @default(cuid())
+  name            String?
+  email           String?    @unique
+  emailVerified   DateTime?
+  image           String?
+  role            Role       @default(USER)
+  lastSignedInAt  DateTime?
+  accounts        Account[]
+  sessions        Session[]
+  actorAuditLogs  AuditLog[] @relation("ActorAuditLogs")
+  targetAuditLogs AuditLog[] @relation("TargetUserAuditLogs")
 
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+}
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  actorId      String?
+  targetUserId String?
+  oldRole      Role
+  newRole      Role
+  createdAt    DateTime @default(now())
+
+  actor        User?    @relation("ActorAuditLogs", fields: [actorId], references: [id], onDelete: SetNull)
+  targetUser   User?    @relation("TargetUserAuditLogs", fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([targetUserId])
 }
 
 model Account {

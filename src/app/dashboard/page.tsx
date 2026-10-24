@@ -1,4 +1,5 @@
 import { auth, signOut } from "@/auth";
+import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -17,9 +18,17 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  const { name, email, image, role } = session.user;
-  const userRole = (role as string) || "USER";
-  const isAdmin = userRole.toUpperCase() === "ADMIN";
+  const dbUser = await prisma.user.findUnique({
+    where: session.user.id
+      ? { id: session.user.id }
+      : { email: session.user.email || "" },
+  });
+
+  const isAdmin = dbUser?.role === "ADMIN";
+  const userRole = dbUser?.role || (session.user.role as string) || "USER";
+  const name = dbUser?.name ?? session.user.name;
+  const email = dbUser?.email ?? session.user.email;
+  const image = dbUser?.image ?? session.user.image;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
@@ -46,6 +55,17 @@ export default async function DashboardPage() {
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               Landing Page
             </Link>
+
+            {isAdmin && (
+              <Link
+                href="/admin"
+                id="dashboard-admin-link"
+                className="text-sm font-semibold text-amber-400 hover:text-amber-300 transition-colors focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none rounded-md px-2 py-1 flex items-center gap-1.5"
+              >
+                <Shield className="h-4 w-4" aria-hidden="true" />
+                Admin
+              </Link>
+            )}
 
             {/* Server Action Sign Out Button */}
             <form
