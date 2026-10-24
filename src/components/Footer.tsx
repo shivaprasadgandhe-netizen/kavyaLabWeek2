@@ -55,7 +55,7 @@ export function Footer() {
 
         {/* Copyright notice */}
         <div className="mt-10 pt-8 border-t border-slate-800/60 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400">
-          <p>&copy; 2026 Kavya Labs. All rights reserved.</p>
+          <p>© 2026 Kavya Labs. All rights reserved.</p>
           <p className="flex items-center gap-1 text-slate-400">
             Headquartered in Bengaluru &bull; Built with Next.js &amp; Tailwind CSS
           </p>

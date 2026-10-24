@@ -1,7 +1,8 @@
 import { Zap, ShieldCheck, TrendingUp } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 interface FeatureCardProps {
-  icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean | "true" | "false" }>;
+  icon: LucideIcon;
   title: string;
   description: string;
 }

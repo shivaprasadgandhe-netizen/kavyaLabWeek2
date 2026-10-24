@@ -18,6 +18,17 @@ export function Navbar() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen]);
 
+  // Automatically close mobile menu if window is resized to desktop breakpoint
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768 && isOpen) {
+        setIsOpen(false);
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [isOpen]);
+
   // Prevent background scroll when mobile menu is open
   useEffect(() => {
     if (isOpen) {
@@ -91,6 +102,8 @@ export function Navbar() {
       {isOpen && (
         <div
           id="mobile-nav-menu"
+          role="region"
+          aria-label="Mobile navigation menu"
           className="fixed inset-x-0 top-16 sm:top-20 bottom-0 bg-slate-950/95 backdrop-blur-lg border-t border-slate-800/80 md:hidden z-40 flex flex-col p-6 animate-in fade-in slide-in-from-top-2 duration-200"
         >
           <div className="flex flex-col gap-4 pt-2">
