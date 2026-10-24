@@ -14,21 +14,63 @@ enum Role {
   ADMIN
 }
 
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum SecurityEventType {
+  SIGN_IN
+  SIGN_IN_BLOCKED
+  ACCOUNT_SUSPENDED
+  ACCOUNT_REACTIVATED
+  ROLE_CHANGED
+  SESSIONS_REVOKED
+  DATA_EXPORTED
+  ACCOUNT_DELETED
+}
+
 model User {
-  id              String     @id @default(cuid())
+  id              String          @id @default(cuid())
   name            String?
-  email           String?    @unique
+  email           String?         @unique
   emailVerified   DateTime?
   image           String?
-  role            Role       @default(USER)
+  role            Role            @default(USER)
+  status          UserStatus      @default(ACTIVE)
+  suspendedAt     DateTime?
+  suspendedReason String?         @db.VarChar(200)
   lastSignedInAt  DateTime?
   accounts        Account[]
   sessions        Session[]
-  actorAuditLogs  AuditLog[] @relation("ActorAuditLogs")
-  targetAuditLogs AuditLog[] @relation("TargetUserAuditLogs")
+  securityEvents  SecurityEvent[]
+  actorAuditLogs  AuditLog[]      @relation("ActorAuditLogs")
+  targetAuditLogs AuditLog[]      @relation("TargetUserAuditLogs")
 
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
+
+model SecurityEvent {
+  id        String            @id @default(cuid())
+  userId    String?
+  type      SecurityEventType
+  ipHash    String?
+  userAgent String?           @db.VarChar(255)
+  createdAt DateTime          @default(now())
+
+  user      User?             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model RateLimit {
+  key          String   @id
+  count        Int
+  windowEndsAt DateTime
+
+  @@index([windowEndsAt])
 }
 
 model AuditLog {
@@ -74,6 +116,7 @@ model Session {
   sessionToken String   @unique
   userId       String
   expires      DateTime
+  userAgent    String?  @db.VarChar(255)
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt    DateTime @default(now())

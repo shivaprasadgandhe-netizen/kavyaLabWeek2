@@ -12,49 +12,17 @@ export const metadata: Metadata = {
 function getAuthErrorMessage(errorCode?: string): { title: string; description: string } | null {
   if (!errorCode) return null;
 
-  switch (errorCode) {
-    case "OAuthSignin":
-      return {
-        title: "Google Sign-In Failed",
-        description: "Unable to connect to Google authentication. Please verify your connection or try again.",
-      };
-    case "OAuthCallbackError":
-    case "CallbackRouteError":
-      return {
-        title: "Authentication Callback Error",
-        description: "An error occurred while communicating with Google. Please try signing in again.",
-      };
-    case "OAuthCreateAccount":
-      return {
-        title: "Account Creation Failed",
-        description: "We could not register your user profile in the database. Please try again shortly.",
-      };
-    case "OAuthAccountNotLinked":
-      return {
-        title: "Account Already Exists",
-        description: "An account with this email is already registered using a different login method.",
-      };
-    case "AccessDenied":
-      return {
-        title: "Access Denied",
-        description: "Sign-in was cancelled or you do not have permission to access this resource.",
-      };
-    case "Configuration":
-      return {
-        title: "Server Configuration Error",
-        description: "Authentication is temporarily misconfigured. Please verify server environment variables.",
-      };
-    case "Verification":
-      return {
-        title: "Session Expired",
-        description: "Your authentication session has expired. Please sign in again.",
-      };
-    default:
-      return {
-        title: "Sign-In Error",
-        description: "An unexpected error occurred during authentication. Please try again.",
-      };
+  if (errorCode.toLowerCase() === "suspended") {
+    return {
+      title: "Account Suspended",
+      description: "Your account has been suspended. Please contact an administrator or support if you believe this is an error.",
+    };
   }
+
+  return {
+    title: "Sign-In Failed",
+    description: "An error occurred while signing in. Please verify your credentials and try again.",
+  };
 }
 
 interface LoginPageProps {

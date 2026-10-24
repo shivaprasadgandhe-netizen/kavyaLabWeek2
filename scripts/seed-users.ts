@@ -58,12 +58,14 @@ async function seed() {
       update: {
         name: item.name,
         role: item.role,
+        status: "ACTIVE",
         lastSignedInAt,
       },
       create: {
         email,
         name: item.name,
         role: item.role,
+        status: "ACTIVE",
         createdAt,
         lastSignedInAt,
       },

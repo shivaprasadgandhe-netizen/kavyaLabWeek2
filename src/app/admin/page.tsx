@@ -23,22 +23,29 @@ export default async function AdminAnalyticsPage() {
   thirtyDaysAgoUTC.setUTCDate(thirtyDaysAgoUTC.getUTCDate() - 29);
 
   // Parallel database queries with Promise.all
-  const [totalUsers, adminCount, newUsers7Days, signIns24Hours, rawDailySignups] =
-    await Promise.all([
-      prisma.user.count(),
-      prisma.user.count({ where: { role: "ADMIN" } }),
-      prisma.user.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
-      prisma.user.count({ where: { lastSignedInAt: { gte: twentyFourHoursAgo } } }),
-      prisma.$queryRaw<Array<{ day: Date; count: number }>>`
-        SELECT 
-          DATE_TRUNC('day', "createdAt") AT TIME ZONE 'UTC' AS day,
-          COUNT(*)::int AS count
-        FROM "User"
-        WHERE "createdAt" >= ${thirtyDaysAgoUTC}
-        GROUP BY DATE_TRUNC('day', "createdAt") AT TIME ZONE 'UTC'
-        ORDER BY day ASC
-      `,
-    ]);
+  const [
+    totalUsers,
+    adminCount,
+    newUsers7Days,
+    signIns24Hours,
+    suspendedUsers,
+    rawDailySignups,
+  ] = await Promise.all([
+    prisma.user.count(),
+    prisma.user.count({ where: { role: "ADMIN" } }),
+    prisma.user.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
+    prisma.user.count({ where: { lastSignedInAt: { gte: twentyFourHoursAgo } } }),
+    prisma.user.count({ where: { status: "SUSPENDED" } }),
+    prisma.$queryRaw<Array<{ day: Date; count: number }>>`
+      SELECT 
+        DATE_TRUNC('day', "createdAt") AT TIME ZONE 'UTC' AS day,
+        COUNT(*)::int AS count
+      FROM "User"
+      WHERE "createdAt" >= ${thirtyDaysAgoUTC}
+      GROUP BY DATE_TRUNC('day', "createdAt") AT TIME ZONE 'UTC'
+      ORDER BY day ASC
+    `,
+  ]);
 
   // Build map of counts by UTC date 'YYYY-MM-DD'
   const countsByDate = new Map<string, number>();
@@ -70,22 +77,22 @@ export default async function AdminAnalyticsPage() {
           Platform Analytics
         </h1>
         <p className="mt-1 text-sm text-slate-400">
-          Real-time metrics, platform usage summary, and UTC signup trends.
+          Real-time metrics, platform usage summary, account security statuses, and UTC signup trends.
         </p>
       </div>
 
-      {/* 4 Summary Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* 5 Summary Cards */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {/* Total Users */}
         <div className="rounded-2xl border border-slate-800/80 bg-slate-900/40 p-5 backdrop-blur-sm shadow-lg flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30">
             <Users className="h-6 w-6" aria-hidden="true" />
           </div>
           <div>
             <p className="text-xs font-medium uppercase tracking-wider text-slate-400">
               Total Users
             </p>
-            <p className="text-2xl sm:text-3xl font-bold text-white mt-0.5">
+            <p className="text-2xl font-bold text-white mt-0.5">
               {totalUsers}
             </p>
           </div>
@@ -93,14 +100,14 @@ export default async function AdminAnalyticsPage() {
 
         {/* Admins */}
         <div className="rounded-2xl border border-slate-800/80 bg-slate-900/40 p-5 backdrop-blur-sm shadow-lg flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-600/20 text-amber-400 border border-amber-500/30">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-600/20 text-amber-400 border border-amber-500/30">
             <Shield className="h-6 w-6" aria-hidden="true" />
           </div>
           <div>
             <p className="text-xs font-medium uppercase tracking-wider text-slate-400">
               Admins
             </p>
-            <p className="text-2xl sm:text-3xl font-bold text-white mt-0.5">
+            <p className="text-2xl font-bold text-white mt-0.5">
               {adminCount}
             </p>
           </div>
@@ -108,14 +115,14 @@ export default async function AdminAnalyticsPage() {
 
         {/* New Users (7 Days) */}
         <div className="rounded-2xl border border-slate-800/80 bg-slate-900/40 p-5 backdrop-blur-sm shadow-lg flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-600/20 text-emerald-400 border border-emerald-500/30">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-600/20 text-emerald-400 border border-emerald-500/30">
             <UserPlus className="h-6 w-6" aria-hidden="true" />
           </div>
           <div>
             <p className="text-xs font-medium uppercase tracking-wider text-slate-400">
-              New Users (7 Days)
+              New (7 Days)
             </p>
-            <p className="text-2xl sm:text-3xl font-bold text-white mt-0.5">
+            <p className="text-2xl font-bold text-white mt-0.5">
               {newUsers7Days}
             </p>
           </div>
@@ -123,15 +130,30 @@ export default async function AdminAnalyticsPage() {
 
         {/* Sign-ins (24 Hours) */}
         <div className="rounded-2xl border border-slate-800/80 bg-slate-900/40 p-5 backdrop-blur-sm shadow-lg flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-600/20 text-cyan-400 border border-cyan-500/30">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-cyan-600/20 text-cyan-400 border border-cyan-500/30">
             <LogIn className="h-6 w-6" aria-hidden="true" />
           </div>
           <div>
             <p className="text-xs font-medium uppercase tracking-wider text-slate-400">
-              Sign-Ins (24 Hours)
+              Sign-Ins (24h)
             </p>
-            <p className="text-2xl sm:text-3xl font-bold text-white mt-0.5">
+            <p className="text-2xl font-bold text-white mt-0.5">
               {signIns24Hours}
+            </p>
+          </div>
+        </div>
+
+        {/* Suspended Users */}
+        <div className="rounded-2xl border border-slate-800/80 bg-slate-900/40 p-5 backdrop-blur-sm shadow-lg flex items-center gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-red-600/20 text-red-400 border border-red-500/30">
+            <Shield className="h-6 w-6 text-red-400" aria-hidden="true" />
+          </div>
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wider text-slate-400">
+              Suspended
+            </p>
+            <p className="text-2xl font-bold text-white mt-0.5">
+              {suspendedUsers}
             </p>
           </div>
         </div>

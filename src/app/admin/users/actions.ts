@@ -2,33 +2,51 @@
 
 import { requireAdmin } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
-import { Role } from "@prisma/client";
+import { validateRole, validateSuspensionReason } from "@/lib/validation";
+import {
+  checkAdminRoleRateLimit,
+  checkAdminStatusRateLimit,
+  getClientIp,
+  hashIp,
+} from "@/lib/rate-limit";
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 
-export interface ChangeRoleResult {
+export interface AdminActionResult {
   success: boolean;
   error?: string;
 }
 
+/**
+ * Changes a user's role between USER and ADMIN.
+ * Rate limited to 30 requests per admin per minute.
+ * Prevents self-demotion lockout.
+ * Writes AuditLog for admin history and SecurityEvent for user history.
+ */
 export async function changeRole(
   userId: string,
   newRole: string
-): Promise<ChangeRoleResult> {
-  // Start with requireAdmin(). Get the actor's ID from the session / db user.
+): Promise<AdminActionResult> {
   const { user: actor } = await requireAdmin();
   const actorId = actor.id;
 
-  // Validate that newRole is exactly "USER" or "ADMIN". Reject everything else with a clear error.
-  if (newRole !== "USER" && newRole !== "ADMIN") {
+  // Rate limiting: 30 requests per admin per minute
+  const { allowed, retryAfterSeconds } = await checkAdminRoleRateLimit(actorId);
+  if (!allowed) {
     return {
       success: false,
-      error: 'Invalid role specified. Role must be exactly "USER" or "ADMIN".',
+      error: `Rate limit exceeded. Please wait ${retryAfterSeconds} seconds before updating more roles.`,
     };
   }
 
-  const typedNewRole = newRole as Role;
+  // Validate role
+  const roleValidation = validateRole(newRole);
+  if (!roleValidation.valid) {
+    return { success: false, error: roleValidation.error };
+  }
+  const typedNewRole = roleValidation.value;
 
-  // If the actor is changing their own role from ADMIN to USER, reject it. This prevents lockout.
+  // Prevent self-demotion lockout
   if (actorId === userId && typedNewRole === "USER") {
     return {
       success: false,
@@ -36,27 +54,33 @@ export async function changeRole(
     };
   }
 
-  // Load the target user's current role.
+  // Load target user
   const targetUser = await prisma.user.findUnique({
     where: { id: userId },
     select: { id: true, role: true },
   });
 
   if (!targetUser) {
-    return {
-      success: false,
-      error: "Target user not found.",
-    };
+    return { success: false, error: "Target user not found." };
   }
 
-  // If it is unchanged, return without writing.
   if (targetUser.role === typedNewRole) {
-    return {
-      success: true,
-    };
+    return { success: true };
   }
 
-  // Inside prisma.$transaction, update the role and create an AuditLog row with actorId, targetUserId, oldRole, and newRole.
+  // Collect request metadata for security event
+  let ipHash: string | null = null;
+  let userAgent: string | null = null;
+  try {
+    const reqHeaders = await headers();
+    const rawIp = getClientIp(reqHeaders);
+    ipHash = hashIp(rawIp);
+    userAgent = (reqHeaders.get("user-agent") || "").slice(0, 255) || null;
+  } catch {
+    // Non-blocking
+  }
+
+  // Atomic database transaction: update role, write admin AuditLog, and write user SecurityEvent
   await prisma.$transaction([
     prisma.user.update({
       where: { id: userId },
@@ -70,13 +94,195 @@ export async function changeRole(
         newRole: typedNewRole,
       },
     }),
+    prisma.securityEvent.create({
+      data: {
+        userId,
+        type: "ROLE_CHANGED",
+        ipHash,
+        userAgent,
+      },
+    }),
   ]);
 
-  // Call revalidatePath("/admin/users") and revalidatePath("/admin").
+  revalidatePath("/admin/users");
+  revalidatePath("/admin");
+  revalidatePath("/admin/audit");
+
+  return { success: true };
+}
+
+/**
+ * Suspends a user account with a mandatory reason (3 to 200 characters).
+ * Rate limited to 30 requests per admin per minute.
+ * Blocks self-suspension and suspending the last active administrator.
+ * Immediately purges all active sessions for the target user.
+ */
+export async function suspendUser(
+  userId: string,
+  reason: string
+): Promise<AdminActionResult> {
+  const { user: actor } = await requireAdmin();
+
+  // Rate limiting: 30 requests per admin per minute
+  const { allowed, retryAfterSeconds } = await checkAdminStatusRateLimit(actor.id);
+  if (!allowed) {
+    return {
+      success: false,
+      error: `Rate limit exceeded. Please wait ${retryAfterSeconds} seconds before updating user status.`,
+    };
+  }
+
+  // Reason validation: required, 3 to 200 characters
+  const reasonValidation = validateSuspensionReason(reason);
+  if (!reasonValidation.valid) {
+    return { success: false, error: reasonValidation.error };
+  }
+  const cleanReason = reasonValidation.value;
+
+  // Cannot suspend self
+  if (actor.id === userId) {
+    return {
+      success: false,
+      error: "Self-suspension is not allowed. You cannot suspend your own administrative account.",
+    };
+  }
+
+  // Find target user
+  const targetUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, role: true, status: true },
+  });
+
+  if (!targetUser) {
+    return { success: false, error: "Target user not found." };
+  }
+
+  if (targetUser.status === "SUSPENDED") {
+    return { success: true };
+  }
+
+  // Reject if target is an ADMIN and suspending them leaves zero active admins
+  if (targetUser.role === "ADMIN") {
+    const activeAdminCount = await prisma.user.count({
+      where: { role: "ADMIN", status: "ACTIVE" },
+    });
+    if (activeAdminCount <= 1) {
+      return {
+        success: false,
+        error: "Action rejected. Suspending this administrator would leave zero active administrators.",
+      };
+    }
+  }
+
+  // Request metadata for SecurityEvent
+  let ipHash: string | null = null;
+  let userAgent: string | null = null;
+  try {
+    const reqHeaders = await headers();
+    const rawIp = getClientIp(reqHeaders);
+    ipHash = hashIp(rawIp);
+    userAgent = (reqHeaders.get("user-agent") || "").slice(0, 255) || null;
+  } catch {
+    // Non-blocking
+  }
+
+  // Atomic transaction: update status, record event, delete sessions immediately
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: userId },
+      data: {
+        status: "SUSPENDED",
+        suspendedAt: new Date(),
+        suspendedReason: cleanReason,
+      },
+    }),
+    prisma.session.deleteMany({
+      where: { userId },
+    }),
+    prisma.securityEvent.create({
+      data: {
+        userId,
+        type: "ACCOUNT_SUSPENDED",
+        ipHash,
+        userAgent,
+      },
+    }),
+  ]);
+
   revalidatePath("/admin/users");
   revalidatePath("/admin");
 
-  return {
-    success: true,
-  };
+  return { success: true };
+}
+
+/**
+ * Reactivates a suspended user account.
+ * Rate limited to 30 requests per admin per minute.
+ */
+export async function reactivateUser(userId: string): Promise<AdminActionResult> {
+  const { user: actor } = await requireAdmin();
+
+  // Rate limiting: 30 requests per admin per minute
+  const { allowed, retryAfterSeconds } = await checkAdminStatusRateLimit(actor.id);
+  if (!allowed) {
+    return {
+      success: false,
+      error: `Rate limit exceeded. Please wait ${retryAfterSeconds} seconds before updating user status.`,
+    };
+  }
+
+  if (actor.id === userId) {
+    return {
+      success: false,
+      error: "Self-reactivation is not applicable to your own active account.",
+    };
+  }
+
+  const targetUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, status: true },
+  });
+
+  if (!targetUser) {
+    return { success: false, error: "Target user not found." };
+  }
+
+  if (targetUser.status === "ACTIVE") {
+    return { success: true };
+  }
+
+  let ipHash: string | null = null;
+  let userAgent: string | null = null;
+  try {
+    const reqHeaders = await headers();
+    const rawIp = getClientIp(reqHeaders);
+    ipHash = hashIp(rawIp);
+    userAgent = (reqHeaders.get("user-agent") || "").slice(0, 255) || null;
+  } catch {
+    // Non-blocking
+  }
+
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: userId },
+      data: {
+        status: "ACTIVE",
+        suspendedAt: null,
+        suspendedReason: null,
+      },
+    }),
+    prisma.securityEvent.create({
+      data: {
+        userId,
+        type: "ACCOUNT_REACTIVATED",
+        ipHash,
+        userAgent,
+      },
+    }),
+  ]);
+
+  revalidatePath("/admin/users");
+  revalidatePath("/admin");
+
+  return { success: true };
 }

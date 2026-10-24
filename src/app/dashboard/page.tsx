@@ -1,9 +1,8 @@
-import { auth, signOut } from "@/auth";
-import { prisma } from "@/lib/prisma";
-import { redirect } from "next/navigation";
+import { requireUser } from "@/lib/auth-guards";
+import { signOut } from "@/auth";
 import Image from "next/image";
 import Link from "next/link";
-import { Sparkles, LogOut, ArrowLeft, Shield, User as UserIcon } from "lucide-react";
+import { Sparkles, LogOut, ArrowLeft, Shield, User as UserIcon, ShieldCheck, Radio } from "lucide-react";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -12,23 +11,14 @@ export const metadata: Metadata = {
 };
 
 export default async function DashboardPage() {
-  const session = await auth();
+  const { user } = await requireUser();
 
-  if (!session?.user) {
-    redirect("/login");
-  }
-
-  const dbUser = await prisma.user.findUnique({
-    where: session.user.id
-      ? { id: session.user.id }
-      : { email: session.user.email || "" },
-  });
-
-  const isAdmin = dbUser?.role === "ADMIN";
-  const userRole = dbUser?.role || (session.user.role as string) || "USER";
-  const name = dbUser?.name ?? session.user.name;
-  const email = dbUser?.email ?? session.user.email;
-  const image = dbUser?.image ?? session.user.image;
+  const isAdmin = user.role === "ADMIN";
+  const userRole = user.role;
+  const userStatus = user.status;
+  const name = user.name;
+  const email = user.email;
+  const image = user.image;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
@@ -47,10 +37,30 @@ export default async function DashboardPage() {
             </span>
           </Link>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <span
+              className={`hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase tracking-wider ${
+                userStatus === "ACTIVE"
+                  ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                  : "bg-red-500/15 text-red-300 border border-red-500/30"
+              }`}
+            >
+              <Radio className="h-3 w-3" aria-hidden="true" />
+              {userStatus}
+            </span>
+
+            <Link
+              href="/dashboard/security"
+              id="dashboard-security-link"
+              className="text-xs sm:text-sm font-medium text-slate-300 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:outline-none rounded-md px-2 py-1 flex items-center gap-1.5"
+            >
+              <ShieldCheck className="h-4 w-4 text-indigo-400" aria-hidden="true" />
+              <span>Security</span>
+            </Link>
+
             <Link
               href="/"
-              className="text-sm font-medium text-slate-400 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:outline-none rounded-md px-2 py-1 flex items-center gap-1.5"
+              className="text-xs sm:text-sm font-medium text-slate-400 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:outline-none rounded-md px-2 py-1 hidden md:flex items-center gap-1.5"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               Landing Page
@@ -60,7 +70,7 @@ export default async function DashboardPage() {
               <Link
                 href="/admin"
                 id="dashboard-admin-link"
-                className="text-sm font-semibold text-amber-400 hover:text-amber-300 transition-colors focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none rounded-md px-2 py-1 flex items-center gap-1.5"
+                className="text-xs sm:text-sm font-semibold text-amber-400 hover:text-amber-300 transition-colors focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:outline-none rounded-md px-2 py-1 flex items-center gap-1.5"
               >
                 <Shield className="h-4 w-4" aria-hidden="true" />
                 Admin

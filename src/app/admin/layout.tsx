@@ -51,6 +51,13 @@ export default async function AdminLayout({
                 <Users className="h-4 w-4 text-indigo-400" aria-hidden="true" />
                 <span>Users</span>
               </Link>
+              <Link
+                href="/admin/audit"
+                className="inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs sm:text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:outline-none"
+              >
+                <Shield className="h-4 w-4 text-amber-400" aria-hidden="true" />
+                <span className="hidden sm:inline">Audit Trail</span>
+              </Link>
             </nav>
 
             <div className="h-4 w-px bg-slate-800 hidden sm:block" />

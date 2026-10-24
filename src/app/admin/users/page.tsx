@@ -1,8 +1,8 @@
 import { requireAdmin } from "@/lib/auth-guards";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
-import RoleChangeForm from "./RoleChangeForm";
-import { Search, ChevronLeft, ChevronRight, User as UserIcon, Shield, RotateCcw } from "lucide-react";
+import UserAdminActions from "./UserAdminActions";
+import { Search, ChevronLeft, ChevronRight, User as UserIcon, Shield, RotateCcw, AlertTriangle } from "lucide-react";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -58,8 +58,10 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
         name: true,
         email: true,
         role: true,
+        status: true,
         createdAt: true,
         lastSignedInAt: true,
+        suspendedReason: true,
       },
     }),
   ]);
@@ -83,7 +85,7 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
             User Management
           </h1>
           <p className="mt-1 text-sm text-slate-400">
-            View registered accounts, search users, and manage role permissions.
+            View registered accounts, search users, manage roles, and review account suspension state.
           </p>
         </div>
 
@@ -130,18 +132,20 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
           <table className="min-w-full divide-y divide-slate-800/80 text-left text-sm">
             <thead className="bg-slate-950/60 text-xs font-semibold uppercase tracking-wider text-slate-400">
               <tr>
-                <th scope="col" className="px-6 py-4">User</th>
-                <th scope="col" className="px-6 py-4">Email</th>
-                <th scope="col" className="px-6 py-4">Role</th>
-                <th scope="col" className="px-6 py-4">Joined Date (UTC)</th>
-                <th scope="col" className="px-6 py-4">Last Sign-In (UTC)</th>
-                <th scope="col" className="px-6 py-4">Manage Role</th>
+                <th scope="col" className="px-5 py-4">User</th>
+                <th scope="col" className="px-5 py-4">Email</th>
+                <th scope="col" className="px-5 py-4">Role</th>
+                <th scope="col" className="px-5 py-4">Status</th>
+                <th scope="col" className="px-5 py-4">Joined (UTC)</th>
+                <th scope="col" className="px-5 py-4">Last Sign-In (UTC)</th>
+                <th scope="col" className="px-5 py-4">Suspension Reason</th>
+                <th scope="col" className="px-5 py-4">Manage</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 bg-transparent text-slate-300">
               {users.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                  <td colSpan={8} className="px-6 py-12 text-center text-slate-400">
                     {q ? `No users found matching "${q}".` : "No registered users found."}
                   </td>
                 </tr>
@@ -158,7 +162,7 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
                       key={u.id}
                       className="hover:bg-slate-800/30 transition-colors"
                     >
-                      <td className="px-6 py-4 font-medium text-white whitespace-nowrap">
+                      <td className="px-5 py-4 font-medium text-white whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-slate-300 font-semibold text-xs ring-1 ring-slate-700">
                             {u.name?.charAt(0) || u.email?.charAt(0) || "U"}
@@ -166,12 +170,12 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
                           <span>{u.name || "Anonymous"}</span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-slate-300 whitespace-nowrap">
+                      <td className="px-5 py-4 text-slate-300 whitespace-nowrap">
                         {u.email || "No email"}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-5 py-4 whitespace-nowrap">
                         <span
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
                             u.role === "ADMIN"
                               ? "bg-amber-500/15 text-amber-300 border border-amber-500/30"
                               : "bg-indigo-500/15 text-indigo-300 border border-indigo-500/30"
@@ -185,16 +189,38 @@ export default async function AdminUsersPage({ searchParams }: AdminUsersPagePro
                           {u.role}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-slate-400 whitespace-nowrap">
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                            u.status === "ACTIVE"
+                              ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                              : "bg-red-500/15 text-red-300 border border-red-500/30"
+                          }`}
+                        >
+                          {u.status}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-slate-400 whitespace-nowrap">
                         {joinedDate}
                       </td>
-                      <td className="px-6 py-4 text-slate-400 whitespace-nowrap">
+                      <td className="px-5 py-4 text-slate-400 whitespace-nowrap">
                         {lastSignIn}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <RoleChangeForm
+                      <td className="px-5 py-4 text-slate-400 max-w-xs truncate text-xs">
+                        {u.suspendedReason ? (
+                          <span className="flex items-center gap-1 text-red-300 font-medium">
+                            <AlertTriangle className="h-3 w-3 shrink-0 text-red-400" aria-hidden="true" />
+                            <span className="truncate">{u.suspendedReason}</span>
+                          </span>
+                        ) : (
+                          <span className="text-slate-600">—</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        <UserAdminActions
                           userId={u.id}
                           currentRole={u.role}
+                          currentStatus={u.status}
                           isSelf={isSelf}
                         />
                       </td>
